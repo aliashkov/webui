@@ -24,8 +24,6 @@ async def test_browser_use_org():
         BrowserContextWindowSize,
     )
 
-    print(55555)
-
     llm = utils.get_llm_model(
         provider="google",
         model_name="gemini-2.0-flash",

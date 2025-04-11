@@ -252,9 +252,19 @@ class CustomAgent(Agent):
         for action in parsed.action:
             action_dict = action.model_dump(exclude_unset=True)
             print("Action dict", action_dict)
-            selector = action_dict.get("selector")
+
+            # Extract selector and index, handling nested structures
+            selector = None
+            index = None
+            action_name = next(iter(action_dict)) if action_dict else None
+            if action_name and isinstance(action_dict.get(action_name), dict):
+                # Handle nested action structure like {'click_element': {'index': 11}}
+                nested_dict = action_dict[action_name]
+                selector = nested_dict.get("selector")
+                index = nested_dict.get("index")
+
             print("Selector", selector)
-            index = action_dict.get("index")
+            print("Index", index)
             print("Context", BrowserContext)
             target_identifier = None
             
@@ -269,12 +279,12 @@ class CustomAgent(Agent):
                 target_identifier = selector
             elif index is not None:
             # Convert index to a selector if possible (e.g., based on current state)
-                state = await self.browser_context.get_state()
+                """ state = await self.browser_context.get_state()
                 clickable_elements = state.element_tree.clickable_elements
                 if 0 <= index < len(clickable_elements):
                     target_identifier = clickable_elements[index].css_selector
                 else:
-                    logger.warning(f"Index {index} out of range; skipping cursor movement.")
+                    logger.warning(f"Index {index} out of range; skipping cursor movement.") """
 
             if target_identifier and target_identifier != self.last_cursor_selector:
             # Insert a MoveCursorToElement action before the current action
