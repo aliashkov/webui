@@ -24,19 +24,7 @@ async def test_browser_use_org():
         BrowserContextWindowSize,
     )
 
-    # llm = utils.get_llm_model(
-    #     provider="azure_openai",
-    #     model_name="gpt-4o",
-    #     temperature=0.8,
-    #     base_url=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-    #     api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
-    # )
-
-    # llm = utils.get_llm_model(
-    #     provider="deepseek",
-    #     model_name="deepseek-chat",
-    #     temperature=0.8
-    # )
+    print(55555)
 
     llm = utils.get_llm_model(
         provider="google",
@@ -113,21 +101,7 @@ async def test_browser_use_custom():
 
     window_w, window_h = 1280, 1100
 
-    # llm = utils.get_llm_model(
-    #     provider="openai",
-    #     model_name="gpt-4o",
-    #     temperature=0.8,
-    #     base_url=os.getenv("OPENAI_ENDPOINT", ""),
-    #     api_key=os.getenv("OPENAI_API_KEY", ""),
-    # )
-
-    # llm = utils.get_llm_model(
-    #     provider="azure_openai",
-    #     model_name="gpt-4o",
-    #     temperature=0.6,
-    #     base_url=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-    #     api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
-    # )
+    print(88888888)
 
     llm = utils.get_llm_model(
         provider="google",
@@ -164,12 +138,13 @@ async def test_browser_use_custom():
     try:
         extra_chromium_args = [f"--window-size={window_w},{window_h}"]
         if use_own_browser:
-            chrome_path = os.getenv("CHROME_PATH", None)
+            """ chrome_path = os.getenv("CHROME_PATH", None)
             if chrome_path == "":
                 chrome_path = None
             chrome_user_data = os.getenv("CHROME_USER_DATA", None)
             if chrome_user_data:
-                extra_chromium_args += [f"--user-data-dir={chrome_user_data}"]
+                extra_chromium_args += [f"--user-data-dir={chrome_user_data}"] """
+            chrome_path = None
         else:
             chrome_path = None
         browser = CustomBrowser(
@@ -247,6 +222,8 @@ async def test_browser_use_parallel():
     from src.controller.custom_controller import CustomController
 
     window_w, window_h = 1920, 1080
+
+    print(11111111111)
 
     # llm = utils.get_llm_model(
     #     provider="openai",

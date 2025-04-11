@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from browser_use.agent.views import ActionResult
 from browser_use.controller.service import Controller
 from browser_use.browser.context import BrowserContext
-from src.browser.custom_context import CustomBrowserContext  # Corrected import path
+from src.browser.custom_context import CustomBrowserContext
 
 logger = logging.getLogger(__name__)
 
@@ -28,20 +28,22 @@ class CustomController(Controller):
             await page.keyboard.type(text)
             return ActionResult(extracted_content=text)
 
-        @self.registry.action("Move to element")
-        async def move_to_element(browser: CustomBrowserContext, selector: str):
-            """Move the mouse to an element with human-like trajectory."""
+        @self.registry.action("Move cursor to element")
+        async def move_cursor_to_element(browser: CustomBrowserContext, selector: str):
+            """Move the cursor to an element with human-like trajectory."""
             try:
                 await browser.move_to_element(selector)
-                return ActionResult(extracted_content=f"Moved to element with selector {selector}")
+                return ActionResult(extracted_content=f"Moved cursor to element with selector {selector}")
             except Exception as e:
-                logger.error(f"Failed to move to element: {str(e)}")
+                logger.error(f"Failed to move cursor to element: {str(e)}")
                 return ActionResult(error=str(e))
 
         @self.registry.action("Click element with human behavior")
         async def click_element_human(browser: CustomBrowserContext, selector: str):
-            """Click an element with human-like mouse movement."""
+            """Move cursor to and click an element with human-like behavior."""
             try:
+                # Move cursor first
+                await browser.move_to_element(selector)
                 await browser.click_element(selector)
                 return ActionResult(extracted_content=f"Clicked element with selector {selector}")
             except Exception as e:
@@ -50,8 +52,10 @@ class CustomController(Controller):
 
         @self.registry.action("Type text at element")
         async def type_text_at_element(browser: CustomBrowserContext, selector: str, text: str):
-            """Type text at an element with human-like behavior."""
+            """Move cursor to an element and type text with human-like behavior."""
             try:
+                # Move cursor first
+                await browser.move_to_element(selector)
                 await browser.type_at_element(selector, text)
                 return ActionResult(extracted_content=f"Typed '{text}' at element {selector}")
             except Exception as e:

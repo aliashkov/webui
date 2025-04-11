@@ -159,6 +159,7 @@ class CustomAgent(Agent):
             ),
             state=self.state.message_manager_state,
         )
+        self.last_cursor_selector = None
 
     def _log_response(self, response: CustomAgentOutput) -> None:
         """Log the model's response"""
@@ -207,7 +208,7 @@ class CustomAgent(Agent):
 
     @time_execution_async("--get_next_action")
     async def get_next_action(self, input_messages: list[BaseMessage]) -> AgentOutput:
-        """Get next action from LLM based on current state"""
+        """Get next action from LLM and insert cursor movement if targeting a new element."""
         fixed_input_messages = self._convert_input_messages(input_messages)
         ai_message = self.llm.invoke(fixed_input_messages)
         self.message_manager._add_message_with_tokens(ai_message)
@@ -228,7 +229,6 @@ class CustomAgent(Agent):
             parsed_json = json.loads(ai_content)
             parsed: AgentOutput = self.AgentOutput(**parsed_json)
         except Exception as e:
-            import traceback
             traceback.print_exc()
             logger.debug(ai_message.content)
             raise ValueError('Could not parse response.')
@@ -237,9 +237,24 @@ class CustomAgent(Agent):
             logger.debug(ai_message.content)
             raise ValueError('Could not parse response.')
 
-        # cut the number of actions to max_actions_per_step if needed
+        # Check for actions targeting elements and insert cursor movement if needed
+        updated_actions = []
+        for action in parsed.action:
+            action_dict = action.model_dump(exclude_unset=True)
+            selector = action_dict.get("selector")  # Assuming actions have a 'selector' field
+            if selector and selector != self.last_cursor_selector:
+                # Insert a MoveCursorToElement action before the current action
+                move_action = {
+                    "name": "Move cursor to element",
+                    "selector": selector
+                }
+                updated_actions.append(self.ActionModel(**move_action))
+                self.last_cursor_selector = selector
+            updated_actions.append(action)
+
+        parsed.action = updated_actions
         if len(parsed.action) > self.settings.max_actions_per_step:
-            parsed.action = parsed.action[: self.settings.max_actions_per_step]
+            parsed.action = parsed.action[:self.settings.max_actions_per_step]
         self._log_response(parsed)
         return parsed
 

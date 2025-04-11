@@ -4,25 +4,43 @@ import os
 from browser_use import BrowserConfig
 from playwright.async_api import async_playwright
 
-# Add project root to sys.path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
 from src.browser.custom_browser import CustomBrowser
-from browser_use.browser.context import BrowserContextConfig
+from src.agent.custom_agent import CustomAgent
+from src.controller.custom_controller import CustomController
+from src.agent.custom_prompts import CustomSystemPrompt, CustomAgentMessagePrompt
+from browser_use.browser.context import BrowserContextConfig, BrowserContextWindowSize
+from src.utils import utils
 
 async def test_custom_context():
     async with async_playwright() as p:
+        llm = utils.get_llm_model(
+            provider="google",
+            model_name="gemini-2.0-flash",
+            temperature=0.6,
+            api_key=os.getenv("GOOGLE_API_KEY", "")
+        )
         browser = CustomBrowser(config=BrowserConfig(
                     headless=False
                 ))
-        context = await browser.new_context(config=BrowserContextConfig())
-        page = await context.get_current_page()
-        await page.goto("https://duckduckgo.com/")
-        await context.move_to_element('[data-state="suggesting2"]')
-        await context.type_at_element('[data-state="suggesting2"]', "Testing emunium")
-        """ await context.click_element('[aria-label="Search"]') """
-        await asyncio.sleep(2)  # Observe result
+        context = await browser.new_context(config=BrowserContextConfig(
+            browser_window_size=BrowserContextWindowSize(width=1280, height=1100)
+        ))
+        controller = CustomController()
+        agent = CustomAgent(
+            task="Go to google.com, move to the search bar, type 'OpenAI', move to the search button, and click it",
+            llm=llm,
+            browser=browser,
+            browser_context=context,
+            controller=controller,
+            system_prompt_class=CustomSystemPrompt,
+            agent_prompt_class=CustomAgentMessagePrompt,
+            use_vision=False
+        )
+        history = await agent.run(max_steps=10)
+        print("Final Result:", history.final_result())
         await context.close()
         await browser.close()
 
