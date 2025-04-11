@@ -270,6 +270,8 @@ class CustomAgent(Agent):
             target_identifier = None
             
             state = await self.browser_context.get_state()
+            
+            
 
             """  print(clickable_elements) """
         # Determine the target identifier (selector or index-based)
@@ -281,18 +283,12 @@ class CustomAgent(Agent):
                 page = await self.browser_context.get_current_page()
                 
                 print("Page", page)
-                
                 print("Emunium", emunium)
+                print("Current Element", state.selector_map[index])
 
-                print("Current Element" , state.selector_map[index])
-                
-            # Convert index to a selector if possible (e.g., based on current state)
-                """ state = await self.browser_context.get_state()
-                clickable_elements = state.element_tree.clickable_elements
-                if 0 <= index < len(clickable_elements):
-                    target_identifier = clickable_elements[index].css_selector
-                else:
-                    logger.warning(f"Index {index} out of range; skipping cursor movement.") """
+                # Extract the target element from selector_map using the index
+                target_element = state.selector_map[index]
+                element = await page.wait_for_selector('[data-state="suggesting"]')
 
             if target_identifier and target_identifier != self.last_cursor_selector:
             # Insert a MoveCursorToElement action before the current action
