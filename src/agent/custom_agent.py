@@ -270,7 +270,7 @@ class CustomAgent(Agent):
             
             state = await self.browser_context.get_state()
             
-            """  print(state) """
+            
             
             clickable_elements = state.element_tree
             """  print(clickable_elements) """
@@ -278,6 +278,8 @@ class CustomAgent(Agent):
             if selector:
                 target_identifier = selector
             elif index is not None:
+                print("Current Element" , state.selector_map[index])
+                
             # Convert index to a selector if possible (e.g., based on current state)
                 """ state = await self.browser_context.get_state()
                 clickable_elements = state.element_tree.clickable_elements
