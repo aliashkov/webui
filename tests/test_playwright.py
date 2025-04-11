@@ -1,31 +1,21 @@
-import pdb
-from dotenv import load_dotenv
+import asyncio
+from playwright.async_api import async_playwright
+from emunium import EmuniumPlaywright
 
-load_dotenv()
+async def main():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)
+        page = await browser.new_page()
+        emunium = EmuniumPlaywright(page)
 
+        await page.goto('https://duckduckgo.com/')
 
-def test_connect_browser():
-    import os
-    from playwright.sync_api import sync_playwright
+        element = await page.wait_for_selector('[data-state="suggesting"]')
+        await emunium.type_at(element, 'Automating searches')
 
-    chrome_exe = os.getenv("CHROME_PATH", "")
-    chrome_use_data = os.getenv("CHROME_USER_DATA", "")
+        submit = await page.wait_for_selector('[aria-label="Search"]')
+        await emunium.click_at(submit)
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch_persistent_context(
-            user_data_dir=chrome_use_data,
-            executable_path=chrome_exe,
-            headless=False  # Keep browser window visible
-        )
+        await browser.close()
 
-        page = browser.new_page()
-        page.goto("https://mail.google.com/mail/u/0/#inbox")
-        page.wait_for_load_state()
-
-        input("Press the Enter key to close the browser...")
-
-        browser.close()
-
-
-if __name__ == '__main__':
-    test_connect_browser()
+asyncio.run(main())
