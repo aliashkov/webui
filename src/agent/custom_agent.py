@@ -215,7 +215,12 @@ class CustomAgent(Agent):
     async def get_next_action(self, input_messages: list[BaseMessage]) -> AgentOutput:
         """Get next action from LLM and insert cursor movement if targeting a new element."""
         fixed_input_messages = self._convert_input_messages(input_messages)
+        """ print("Message", fixed_input_messages) """
         ai_message = self.llm.invoke(fixed_input_messages)
+        
+        """ print("===================================================================") """
+        
+        """ print("AI Message", ai_message) """
         self.message_manager._add_message_with_tokens(ai_message)
 
         if hasattr(ai_message, "reasoning_content"):
@@ -250,9 +255,15 @@ class CustomAgent(Agent):
             selector = action_dict.get("selector")
             print("Selector", selector)
             index = action_dict.get("index")
-            print("Index", index)
+            print("Context", BrowserContext)
             target_identifier = None
-
+            
+            state = await self.browser_context.get_state()
+            
+            """  print(state) """
+            
+            clickable_elements = state.element_tree
+            """  print(clickable_elements) """
         # Determine the target identifier (selector or index-based)
             if selector:
                 target_identifier = selector
@@ -364,6 +375,9 @@ class CustomAgent(Agent):
 
         try:
             state = await self.browser_context.get_state()
+            """ print("State", state) """
+            
+            
             await self._raise_if_stopped_or_paused()
 
             self.message_manager.add_state_message(state, self.state.last_action, self.state.last_result, step_info,
@@ -373,7 +387,11 @@ class CustomAgent(Agent):
             if self.settings.planner_llm and self.state.n_steps % self.settings.planner_interval == 0:
                 await self._run_planner()
             input_messages = self.message_manager.get_messages()
+            
+            """ print("Input messages", input_messages) """
             tokens = self._message_manager.state.history.current_tokens
+            
+            """ print("Tokens", tokens) """
 
             try:
                 model_output = await self.get_next_action(input_messages)
@@ -455,6 +473,8 @@ class CustomAgent(Agent):
         """Execute the task with maximum number of steps"""
         try:
             self._log_agent_run()
+            
+            print("Agent" , self)
 
             # Execute initial actions if provided
             if self.initial_actions:

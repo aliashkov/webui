@@ -28,7 +28,17 @@ async def test_custom_context():
         context = await browser.new_context(config=BrowserContextConfig(
             browser_window_size=BrowserContextWindowSize(width=1280, height=1100)
         ))
+        
+        
+        
         controller = CustomController()
+        page = await context.get_current_page()
+        print( page)
+        await page.goto("https://duckduckgo.com/")
+        await context.move_to_element('[data-state="suggesting"]')
+        
+        print("Context", context)
+        print("Browser", browser)
         agent = CustomAgent(
             task="Go to google.com, move to the search bar, type 'OpenAI', move to the search button, and click it",
             llm=llm,
