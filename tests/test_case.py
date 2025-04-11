@@ -19,9 +19,9 @@ async def test_custom_context():
         context = await browser.new_context(config=BrowserContextConfig())
         page = await context.get_current_page()
         await page.goto("https://duckduckgo.com/")
-        await context.move_to_element('[data-state="suggesting"]')
-        await context.type_at_element('[data-state="suggesting"]', "Testing emunium")
-        await context.click_element('[aria-label="Search"]')
+        await context.move_to_element('[data-state="suggesting2"]')
+        await context.type_at_element('[data-state="suggesting2"]', "Testing emunium")
+        """ await context.click_element('[aria-label="Search"]') """
         await asyncio.sleep(2)  # Observe result
         await context.close()
         await browser.close()

@@ -39,7 +39,10 @@ async def test_browser_use_org():
     # )
 
     llm = utils.get_llm_model(
-        provider="ollama", model_name="deepseek-r1:14b", temperature=0.5
+        provider="google",
+        model_name="gemini-2.0-flash",
+        temperature=0.6,
+        api_key=os.getenv("GOOGLE_API_KEY", "")
     )
 
     window_w, window_h = 1920, 1080
@@ -133,11 +136,6 @@ async def test_browser_use_custom():
         api_key=os.getenv("GOOGLE_API_KEY", "")
     )
 
-    llm = utils.get_llm_model(
-        provider="deepseek",
-        model_name="deepseek-reasoner",
-        temperature=0.8
-    )
 
     # llm = utils.get_llm_model(
     #     provider="deepseek",
