@@ -58,6 +58,8 @@ logger = logging.getLogger(__name__)
 
 Context = TypeVar('Context')
 
+from emunium import EmuniumPlaywright
+
 
 
 class CustomAgent(Agent):
@@ -258,7 +260,6 @@ class CustomAgent(Agent):
             index = None
             action_name = next(iter(action_dict)) if action_dict else None
             if action_name and isinstance(action_dict.get(action_name), dict):
-                # Handle nested action structure like {'click_element': {'index': 11}}
                 nested_dict = action_dict[action_name]
                 selector = nested_dict.get("selector")
                 index = nested_dict.get("index")
@@ -269,15 +270,20 @@ class CustomAgent(Agent):
             target_identifier = None
             
             state = await self.browser_context.get_state()
-            
-            
-            
-            clickable_elements = state.element_tree
+
             """  print(clickable_elements) """
         # Determine the target identifier (selector or index-based)
             if selector:
                 target_identifier = selector
             elif index is not None:
+                emunium = EmuniumPlaywright(self.browser_context)
+                
+                page = await self.browser_context.get_current_page()
+                
+                print("Page", page)
+                
+                print("Emunium", emunium)
+
                 print("Current Element" , state.selector_map[index])
                 
             # Convert index to a selector if possible (e.g., based on current state)
