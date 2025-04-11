@@ -15,11 +15,20 @@ class CustomSystemPrompt(SystemPrompt):
     def _load_prompt_template(self) -> None:
         """Load the prompt template from the markdown file."""
         try:
-            # This works both in development and when installed as a package
             with importlib.resources.files('src.agent').joinpath('custom_system_prompt.md').open('r') as f:
                 self.prompt_template = f.read()
         except Exception as e:
-            raise RuntimeError(f'Failed to load system prompt template: {e}')
+            self.prompt_template = """
+            You are an AI agent controlling a browser with human-like behavior. Your goal is to complete the given task efficiently.
+            Available actions include:
+            - 'Move cursor to element' (selector: str): Move the cursor to an interactive element using its CSS selector.
+            - 'Click element with human behavior' (selector: str): Move the cursor to and click an element.
+            - 'Type text at element' (selector: str, text: str): Move the cursor to an element and type text.
+            - 'Go to url' (url: str): Navigate to a URL.
+            - 'Done' (text: str, success: bool): Indicate task completion.
+            **Important**: Always use 'Move cursor to element' before interacting with a new element if the cursor isn’t already there. Prefer 'Click element with human behavior' and 'Type text at element' over basic click or input actions for human-like interaction. Use CSS selectors (e.g., 'input[name="q"]') instead of indices when possible.
+            """
+            logger.warning(f'Failed to load system prompt template: {e}; using default.')
 
 
 class CustomAgentMessagePrompt(AgentMessagePrompt):
@@ -80,6 +89,7 @@ class CustomAgentMessagePrompt(AgentMessagePrompt):
 {self.state.tabs}
 6. Interactive elements:
 {elements_text}
+7. Tip: Use 'Move cursor to element' to position the cursor before clicking or typing if needed.
         """
 
         if self.actions and self.result:
@@ -89,17 +99,14 @@ class CustomAgentMessagePrompt(AgentMessagePrompt):
                 action = self.actions[i]
                 state_description += f"Previous action {i + 1}/{len(self.result)}: {action.model_dump_json(exclude_unset=True)}\n"
                 if result.error:
-                    # only use last 300 characters of error
                     error = result.error.split('\n')[-1]
                     state_description += (
                         f"Error of previous action {i + 1}/{len(self.result)}: ...{error}\n"
                     )
-                if result.include_in_memory:
-                    if result.extracted_content:
-                        state_description += f"Result of previous action {i + 1}/{len(self.result)}: {result.extracted_content}\n"
+                if result.include_in_memory and result.extracted_content:
+                    state_description += f"Result of previous action {i + 1}/{len(self.result)}: {result.extracted_content}\n"
 
-        if self.state.screenshot and use_vision == True:
-            # Format message for vision model
+        if self.state.screenshot and use_vision:
             return HumanMessage(
                 content=[
                     {'type': 'text', 'text': state_description},
@@ -109,5 +116,4 @@ class CustomAgentMessagePrompt(AgentMessagePrompt):
                     },
                 ]
             )
-
         return HumanMessage(content=state_description)

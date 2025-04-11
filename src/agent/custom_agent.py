@@ -52,9 +52,12 @@ from src.utils.agent_state import AgentState
 from .custom_message_manager import CustomMessageManager, CustomMessageManagerSettings
 from .custom_views import CustomAgentOutput, CustomAgentStepInfo, CustomAgentState
 
+from src.controller.custom_controller import CustomController
+
 logger = logging.getLogger(__name__)
 
 Context = TypeVar('Context')
+
 
 
 class CustomAgent(Agent):
@@ -109,6 +112,8 @@ class CustomAgent(Agent):
             injected_agent_state: Optional[AgentState] = None,
             context: Context | None = None,
     ):
+        if controller is None:
+            controller = CustomController()
         super(CustomAgent, self).__init__(
             task=task,
             llm=llm,
@@ -241,20 +246,53 @@ class CustomAgent(Agent):
         updated_actions = []
         for action in parsed.action:
             action_dict = action.model_dump(exclude_unset=True)
-            selector = action_dict.get("selector")  # Assuming actions have a 'selector' field
-            if selector and selector != self.last_cursor_selector:
-                # Insert a MoveCursorToElement action before the current action
+            print("Action dict", action_dict)
+            selector = action_dict.get("selector")
+            print("Selector", selector)
+            index = action_dict.get("index")
+            print("Index", index)
+            target_identifier = None
+
+        # Determine the target identifier (selector or index-based)
+            if selector:
+                target_identifier = selector
+            elif index is not None:
+            # Convert index to a selector if possible (e.g., based on current state)
+                state = await self.browser_context.get_state()
+                clickable_elements = state.element_tree.clickable_elements
+                if 0 <= index < len(clickable_elements):
+                    target_identifier = clickable_elements[index].css_selector
+                else:
+                    logger.warning(f"Index {index} out of range; skipping cursor movement.")
+
+            if target_identifier and target_identifier != self.last_cursor_selector:
+            # Insert a MoveCursorToElement action before the current action
                 move_action = {
                     "name": "Move cursor to element",
-                    "selector": selector
+                    "selector": target_identifier
                 }
                 updated_actions.append(self.ActionModel(**move_action))
-                self.last_cursor_selector = selector
-            updated_actions.append(action)
+                logger.debug(f"Inserted cursor movement to {target_identifier}")
+                self.last_cursor_selector = target_identifier
+        
+                # Replace default actions with custom ones where applicable
+                if action_dict.get("name") == "input_text" and target_identifier:
+                    updated_actions.append(self.ActionModel(
+                    name="Type text at element",
+                    selector=target_identifier,
+                    text=action_dict["input_text"]["text"]
+                ))
+            elif action_dict.get("name") == "click_element" and target_identifier:
+                updated_actions.append(self.ActionModel(
+                    name="Click element with human behavior",
+                    selector=target_identifier
+                ))
+            else:
+               updated_actions.append(action)
 
         parsed.action = updated_actions
         if len(parsed.action) > self.settings.max_actions_per_step:
-            parsed.action = parsed.action[:self.settings.max_actions_per_step]
+           parsed.action = parsed.action[:self.settings.max_actions_per_step]
         self._log_response(parsed)
         return parsed
 

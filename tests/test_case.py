@@ -37,7 +37,8 @@ async def test_custom_context():
             controller=controller,
             system_prompt_class=CustomSystemPrompt,
             agent_prompt_class=CustomAgentMessagePrompt,
-            use_vision=False
+            use_vision=False,
+            max_actions_per_step=3  # Increased to allow cursor movement + action
         )
         history = await agent.run(max_steps=10)
         print("Final Result:", history.final_result())
