@@ -384,6 +384,8 @@ class CustomAgent(Agent):
                 
                 id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
                 
+                class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
+                
                 if (id_match):
                     element_id = id_match.group(2)
                     print("Extracted 2 from string:", element_id)
@@ -392,6 +394,20 @@ class CustomAgent(Agent):
                     print("Element Selector", element_selector)
                     
                     element_selector = f'[id="{element_id}"]'
+                    
+                    if (browserContext):
+                      await browserContext.move_to_element(element_selector)
+                
+                
+                elif (class_match):
+                    element_id = class_match.group(2)
+                    print("Extracted 3 from string:", element_id)
+                    print("Self browser", browserContext)
+
+                    print("Element Selector", element_selector)
+                    
+
+                    element_selector = f'[class="{element_id}"]'
                     
                     if (browserContext):
                       await browserContext.move_to_element(element_selector)
