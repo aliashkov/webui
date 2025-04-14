@@ -27,12 +27,22 @@ class CustomBrowserContext(BrowserContext):
         try:
             await self._ensure_emunium_initialized()  # Ensure emunium is ready
             page = await self.get_current_page()
-            element = await page.wait_for_selector(selector, timeout=timeout)
+            element = await page.wait_for_selector(selector, state="visible", timeout=timeout)
             if not element:
                 raise ValueError(f"Element with selector {selector} not found")
 
+            # Get the bounding box of the element
+            bounding_box = await element.bounding_box()
+            if not bounding_box:
+                raise ValueError(f"Bounding box for element with selector {selector} could not be determined")
+
+            # Log the coordinates and dimensions of the element
+            print(f"Element coordinates: x={bounding_box['x']}, y={bounding_box['y']}, "
+                        f"width={bounding_box['width']}, height={bounding_box['height']}")
+
             # Use emunium to move to the element
             await self.emunium.move_to(element)
+
         except Exception as e:
             logger.error(f"Error moving to element {selector}: {str(e)}")
             raise
