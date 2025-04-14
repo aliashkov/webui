@@ -14,7 +14,7 @@ from src.agent.custom_prompts import CustomSystemPrompt, CustomAgentMessagePromp
 from browser_use.browser.context import BrowserContextConfig, BrowserContextWindowSize
 from src.utils import utils
 from emunium import EmuniumPlaywright
-
+from src.browser.custom_context import CustomBrowserContext  # Import CustomBrowserContext
 
 async def test_custom_context():
     async with async_playwright() as p:
@@ -24,14 +24,16 @@ async def test_custom_context():
             temperature=0.6,
             api_key=os.getenv("GOOGLE_API_KEY", "")
         )
-        browser = CustomBrowser(config=BrowserConfig(
-                    headless=False
-                ))
-        context = await browser.new_context(config=BrowserContextConfig(
-            browser_window_size=BrowserContextWindowSize(width=1280, height=1100)
-        ))
+        browser = CustomBrowser(config=BrowserConfig(headless=False))
+        # Create CustomBrowserContext directly
+        context = CustomBrowserContext(
+            browser=browser,
+            config=BrowserContextConfig(
+                browser_window_size=BrowserContextWindowSize(width=1280, height=1100)
+            )
+        )
         
-        
+        print(context)
         
         controller = CustomController()
         page = await context.get_current_page()
@@ -40,8 +42,8 @@ async def test_custom_context():
         await page.goto("https://duckduckgo.com/")
         await context.move_to_element('[class="searchbox_input__rnFzM"]')
         
-        print("Context", context)
-        print("Browser", browser)
+        print("Context:", context)
+        print("Browser:", browser)
         agent = CustomAgent(
             task="Go to google.com, move to the search bar, type 'OpenAI', move to the search button, and click it",
             llm=llm,
@@ -51,9 +53,9 @@ async def test_custom_context():
             system_prompt_class=CustomSystemPrompt,
             agent_prompt_class=CustomAgentMessagePrompt,
             use_vision=False,
-            max_actions_per_step=3  # Increased to allow cursor movement + action
+            max_actions_per_step=3
         )
-        history = await agent.run(max_steps=10)
+        history = await agent.run(max_steps=10, browserContext=context)
         print("Final Result:", history.final_result())
         await context.close()
         await browser.close()

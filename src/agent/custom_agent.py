@@ -55,12 +55,14 @@ from .custom_views import CustomAgentOutput, CustomAgentStepInfo, CustomAgentSta
 
 from src.controller.custom_controller import CustomController
 
+from src.browser.custom_context import CustomBrowserContext  # Import CustomBrowserContext
+
+
 logger = logging.getLogger(__name__)
 
 Context = TypeVar('Context')
 
 from emunium import EmuniumPlaywright
-
 
 
 class CustomAgent(Agent):
@@ -215,7 +217,7 @@ class CustomAgent(Agent):
         logger.info(f"🧠 All Memory: \n{step_info.memory}")
 
     @time_execution_async("--get_next_action")
-    async def get_next_action(self, input_messages: list[BaseMessage]) -> AgentOutput:
+    async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None) -> AgentOutput:
         """Get next action from LLM and insert cursor movement if targeting a new element."""
         fixed_input_messages = self._convert_input_messages(input_messages)
         """ print("Message", fixed_input_messages) """
@@ -392,9 +394,8 @@ class CustomAgent(Agent):
                 if (id_match):
                     element_id = id_match.group(2)
                     print("Extracted 2 from string:", element_id)
-                    print("Self browser", self.browser)
+                    print("Self browser", browserContext)
                     
-                    """ b = await self.browser_context.move_to_element('[class="searchbox_input__rnFzM"]') """
                     
                     
                     element_selector = f'#{element_id}'
@@ -503,7 +504,7 @@ class CustomAgent(Agent):
         return plan
 
     @time_execution_async("--step")
-    async def step(self, step_info: Optional[CustomAgentStepInfo] = None) -> None:
+    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None) -> None:
         """Execute one step of the task"""
         logger.info(f"\n📍 Step {self.state.n_steps}")
         state = None
@@ -533,7 +534,7 @@ class CustomAgent(Agent):
             """ print("Tokens", tokens) """
 
             try:
-                model_output = await self.get_next_action(input_messages)
+                model_output = await self.get_next_action(input_messages, browserContext = browserContext)
                 self.update_step_info(model_output, step_info)
                 self.state.n_steps += 1
 
@@ -608,12 +609,14 @@ class CustomAgent(Agent):
                 )
                 self._make_history_item(model_output, state, result, metadata)
 
-    async def run(self, max_steps: int = 100) -> AgentHistoryList:
+    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None) -> AgentHistoryList:
         """Execute the task with maximum number of steps"""
         try:
             self._log_agent_run()
             
             print("Agent" , self)
+            
+            print("Browser Context" , browserContext)
 
             # Execute initial actions if provided
             if self.initial_actions:
@@ -644,7 +647,7 @@ class CustomAgent(Agent):
                     if self.state.stopped:  # Allow stopping while paused
                         break
 
-                await self.step(step_info)
+                await self.step(step_info, browserContext = browserContext)
 
                 if self.state.history.is_done():
                     if self.settings.validate_output and step < max_steps - 1:
