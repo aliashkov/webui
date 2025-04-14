@@ -292,7 +292,6 @@ class CustomAgent(Agent):
                 
                 # Initialize selector
                 element_selector = None
-                element_id = None
 
                 # Check if target_element is a DOMElementNode
                 if str(type(target_element).__name__) == 'DOMElementNode':
@@ -300,7 +299,6 @@ class CustomAgent(Agent):
                     
                     # Try to access attributes from DOMElementNode
                     try:
-                        # Assuming DOMElementNode has a method like get_attribute
                         element_id = target_element.get_attribute('id') if hasattr(target_element, 'get_attribute') else None
                         if element_id:
                             print("Extracted ElementId from DOMElementNode:", element_id)
@@ -312,41 +310,73 @@ class CustomAgent(Agent):
                     if not element_selector:
                         print("Falling back to string representation of DOMElementNode...")
                         element_str = str(target_element)
-                        # Regex to match id="..."
-                        id_match = re.search(r'id\s*=\s*[\'"]([^\'"]+)[\'"]', element_str, re.IGNORECASE)
+
+                        # Extract id
+                        id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
                         if id_match:
-                            element_id = id_match.group(1)
+                            element_id = id_match.group(2)
                             print("Extracted ElementId from string:", element_id)
                             element_selector = f'#{element_id}'
-                        else:
-                            # Try class or data-ved
-                            class_match = re.search(r'class\s*=\s*[\'"]([^\'"]+)[\'"]', element_str, re.IGNORECASE)
-                            data_ved_match = re.search(r'data-ved\s*=\s*[\'"]([^\'"]+)[\'"]', element_str, re.IGNORECASE)
-                            tag_match = re.search(r'<(\w+)', element_str)
-                            
-                            tag_name = tag_match.group(1).lower() if tag_match else 'button'
+                        
+                        # Extract class
+                        if not element_selector:
+                            class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
                             if class_match:
-                                class_name = class_match.group(1)
+                                class_name = class_match.group(2)
+                                tag_match = re.search(r'<(\w+)', element_str)
+                                tag_name = tag_match.group(1).lower() if tag_match else 'button'
                                 element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
                                 print("Using class-based selector:", element_selector)
-                            elif data_ved_match:
-                                data_ved = data_ved_match.group(1)
+                        
+                        # Extract data-ved
+                        if not element_selector:
+                            data_ved_match = re.search(r'data-ved\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
+                            if data_ved_match:
+                                data_ved = data_ved_match.group(2)
+                                tag_match = re.search(r'<(\w+)', element_str)
+                                tag_name = tag_match.group(1).lower() if tag_match else 'button'
                                 element_selector = f'{tag_name}[data-ved="{data_ved}"]'
                                 print("Using data-ved selector:", element_selector)
-                            else:
-                                print("No usable attributes found in DOMElementNode string.")
-                
+                        
+                        # No usable attributes found
+                        if not element_selector:
+                            print("No usable attributes found in DOMElementNode string.")
+
                 # Handle other unexpected types
                 else:
                     print("Target element is not a DOMElementNode, type:", type(target_element))
                     element_str = str(target_element)
-                    id_match = re.search(r'id\s*=\s*[\'"]([^\'"]+)[\'"]', element_str, re.IGNORECASE)
+
+                    # Extract id
+                    id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
                     if id_match:
-                        element_id = id_match.group(1)
+                        element_id = id_match.group(2)
                         print("Extracted ElementId from string (other type):", element_id)
                         element_selector = f'#{element_id}'
-                    else:
-                        print("Could not extract ID from non-DOMElementNode type.")
+                    
+                    # Extract class
+                    if not element_selector:
+                        class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
+                        if class_match:
+                            class_name = class_match.group(2)
+                            tag_match = re.search(r'<(\w+)', element_str)
+                            tag_name = tag_match.group(1).lower() if tag_match else 'button'
+                            element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
+                            print("Using class-based selector:", element_selector)
+                    
+                    # Extract data-ved
+                    if not element_selector:
+                        data_ved_match = re.search(r'data-ved\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
+                        if data_ved_match:
+                            data_ved = data_ved_match.group(2)
+                            tag_match = re.search(r'<(\w+)', element_str)
+                            tag_name = tag_match.group(1).lower() if tag_match else 'button'
+                            element_selector = f'{tag_name}[data-ved="{data_ved}"]'
+                            print("Using data-ved selector:", element_selector)
+                    
+                    # No usable attributes found
+                    if not element_selector:
+                        print("Could not extract ID or other attributes from non-DOMElementNode type.")
 
                 # If no selector was constructed, raise an error
                 if not element_selector:
@@ -355,7 +385,20 @@ class CustomAgent(Agent):
                 print("Constructed Selector:", element_selector)
                 
                 # Locate the element using the constructed selector
-                element = await page.wait_for_selector(element_selector, timeout=5000, state="visible")
+                TIMEOUT_MS = 30000
+                
+                id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
+                
+                if (id_match):
+                    element_id = id_match.group(2)
+                    print("Extracted 2 from string:", element_id)
+                    element_selector = f'#{element_id}'
+                    element = await page.wait_for_selector('[id="L2AGLb"]')
+                    
+
+                
+
+                element = await page.wait_for_selector(element_selector, timeout=TIMEOUT_MS, state="visible")
                 if not element:
                     raise ValueError(f"Element not found with selector: {element_selector}")
                 
