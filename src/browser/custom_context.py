@@ -22,27 +22,23 @@ class CustomBrowserContext(BrowserContext):
             self.emunium = EmuniumPlaywright(page)
             logger.debug("EmuniumPlaywright initialized")
 
-    async def move_to_element(self, selector: str, timeout: int = 30000):
+    async def move_to_element(self, selector: str, timeout: int = 30000, useOwnBrowser = False):
         """Move the mouse to the center of an element with human-like trajectory using emunium."""
         try:
+            
+            print("Use own browser", useOwnBrowser)
             await self._ensure_emunium_initialized()  # Ensure emunium is ready
             page = await self.get_current_page()
-            element = await page.wait_for_selector(selector, state="visible", timeout=timeout)
+            element = await page.wait_for_selector(selector, timeout=timeout)
             if not element:
                 raise ValueError(f"Element with selector {selector} not found")
 
-            # Get the bounding box of the element
-            bounding_box = await element.bounding_box()
-            if not bounding_box:
-                raise ValueError(f"Bounding box for element with selector {selector} could not be determined")
-
-            # Log the coordinates and dimensions of the element
-            print(f"Element coordinates: x={bounding_box['x']}, y={bounding_box['y']}, "
-                        f"width={bounding_box['width']}, height={bounding_box['height']}")
-
             # Use emunium to move to the element
-            await self.emunium.move_to(element)
-
+            if useOwnBrowser:
+              await self.emunium.move_to(element, 0 , 0)
+            else:
+              await self.emunium.move_to(element, 0 , 87)
+              
         except Exception as e:
             logger.error(f"Error moving to element {selector}: {str(e)}")
             raise

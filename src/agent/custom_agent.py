@@ -224,7 +224,8 @@ class CustomAgent(Agent):
         ai_message = self.llm.invoke(fixed_input_messages)
         
         self.message_manager._add_message_with_tokens(ai_message)
-
+        
+    
         if hasattr(ai_message, "reasoning_content"):
             logger.info("🤯 Start Deep Thinking: ")
             logger.info(ai_message.reasoning_content)
@@ -410,7 +411,7 @@ class CustomAgent(Agent):
                     element_selector = f'[class="{element_id}"]'
                     
                     if (browserContext):
-                      await browserContext.move_to_element(element_selector)
+                      await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
                     
                 element = await page.wait_for_selector(element_selector, timeout=TIMEOUT_MS, state="visible")
                 if not element:
@@ -512,7 +513,7 @@ class CustomAgent(Agent):
         return plan
 
     @time_execution_async("--step")
-    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None) -> None:
+    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[CustomBrowserContext] = None) -> None:
         """Execute one step of the task"""
         logger.info(f"\n📍 Step {self.state.n_steps}")
         state = None
@@ -617,7 +618,7 @@ class CustomAgent(Agent):
                 )
                 self._make_history_item(model_output, state, result, metadata)
 
-    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None) -> AgentHistoryList:
+    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[CustomBrowserContext] = False) -> AgentHistoryList:
         """Execute the task with maximum number of steps"""
         try:
             self._log_agent_run()
@@ -655,7 +656,7 @@ class CustomAgent(Agent):
                     if self.state.stopped:  # Allow stopping while paused
                         break
 
-                await self.step(step_info, browserContext = browserContext)
+                await self.step(step_info, browserContext = browserContext, useOwnBrowser = useOwnBrowser)
 
                 if self.state.history.is_done():
                     if self.settings.validate_output and step < max_steps - 1:
