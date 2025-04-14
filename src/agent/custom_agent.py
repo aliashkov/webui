@@ -392,6 +392,11 @@ class CustomAgent(Agent):
                 if (id_match):
                     element_id = id_match.group(2)
                     print("Extracted 2 from string:", element_id)
+                    print("Self browser", self.browser)
+                    
+                    """ b = await self.browser_context.move_to_element('[class="searchbox_input__rnFzM"]') """
+                    
+                    
                     element_selector = f'#{element_id}'
                     element = await page.wait_for_selector('[id="L2AGLb"]')
                     

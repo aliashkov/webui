@@ -33,10 +33,6 @@ class CustomBrowserContext(BrowserContext):
 
             # Use emunium to move to the element
             await self.emunium.move_to(element)
-            box = await element.bounding_box()
-            center_x = box["x"] + box["width"] / 2
-            center_y = box["y"] + box["height"] / 2
-            logger.info(f"Moved to element {selector} at ({center_x}, {center_y})")
         except Exception as e:
             logger.error(f"Error moving to element {selector}: {str(e)}")
             raise

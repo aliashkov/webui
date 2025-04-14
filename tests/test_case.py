@@ -13,6 +13,8 @@ from src.controller.custom_controller import CustomController
 from src.agent.custom_prompts import CustomSystemPrompt, CustomAgentMessagePrompt
 from browser_use.browser.context import BrowserContextConfig, BrowserContextWindowSize
 from src.utils import utils
+from emunium import EmuniumPlaywright
+
 
 async def test_custom_context():
     async with async_playwright() as p:
@@ -33,6 +35,7 @@ async def test_custom_context():
         
         controller = CustomController()
         page = await context.get_current_page()
+        emunium = EmuniumPlaywright(page)
         print( page)
         await page.goto("https://duckduckgo.com/")
         await context.move_to_element('[class="searchbox_input__rnFzM"]')
