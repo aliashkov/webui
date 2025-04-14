@@ -10,6 +10,7 @@ import io
 import asyncio
 import time
 import platform
+import re
 from browser_use.agent.prompts import SystemPrompt, AgentMessagePrompt
 from browser_use.agent.service import Agent
 from browser_use.agent.message_manager.utils import convert_input_messages, extract_json_from_model_output, \
@@ -279,16 +280,92 @@ class CustomAgent(Agent):
                 target_identifier = selector
             elif index is not None:
                 emunium = EmuniumPlaywright(self.browser_context)
-                
                 page = await self.browser_context.get_current_page()
                 
-                print("Page", page)
-                print("Emunium", emunium)
-                print("Current Element", state.selector_map[index])
+                print("Page:", page)
+                print("Emunium:", emunium)
+                print("Index:", index)
+                print("Current Element:", state.selector_map[index])
 
                 # Extract the target element from selector_map using the index
                 target_element = state.selector_map[index]
-                element = await page.wait_for_selector('[data-state="suggesting"]')
+                
+                # Initialize selector
+                element_selector = None
+                element_id = None
+
+                # Check if target_element is a DOMElementNode
+                if str(type(target_element).__name__) == 'DOMElementNode':
+                    print("Target element is a DOMElementNode.")
+                    
+                    # Try to access attributes from DOMElementNode
+                    try:
+                        # Assuming DOMElementNode has a method like get_attribute
+                        element_id = target_element.get_attribute('id') if hasattr(target_element, 'get_attribute') else None
+                        if element_id:
+                            print("Extracted ElementId from DOMElementNode:", element_id)
+                            element_selector = f'#{element_id}'
+                    except Exception as e:
+                        print(f"Failed to get attributes from DOMElementNode: {e}")
+
+                    # Fallback: Use string representation if attributes are inaccessible
+                    if not element_selector:
+                        print("Falling back to string representation of DOMElementNode...")
+                        element_str = str(target_element)
+                        # Regex to match id="..."
+                        id_match = re.search(r'id\s*=\s*[\'"]([^\'"]+)[\'"]', element_str, re.IGNORECASE)
+                        if id_match:
+                            element_id = id_match.group(1)
+                            print("Extracted ElementId from string:", element_id)
+                            element_selector = f'#{element_id}'
+                        else:
+                            # Try class or data-ved
+                            class_match = re.search(r'class\s*=\s*[\'"]([^\'"]+)[\'"]', element_str, re.IGNORECASE)
+                            data_ved_match = re.search(r'data-ved\s*=\s*[\'"]([^\'"]+)[\'"]', element_str, re.IGNORECASE)
+                            tag_match = re.search(r'<(\w+)', element_str)
+                            
+                            tag_name = tag_match.group(1).lower() if tag_match else 'button'
+                            if class_match:
+                                class_name = class_match.group(1)
+                                element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
+                                print("Using class-based selector:", element_selector)
+                            elif data_ved_match:
+                                data_ved = data_ved_match.group(1)
+                                element_selector = f'{tag_name}[data-ved="{data_ved}"]'
+                                print("Using data-ved selector:", element_selector)
+                            else:
+                                print("No usable attributes found in DOMElementNode string.")
+                
+                # Handle other unexpected types
+                else:
+                    print("Target element is not a DOMElementNode, type:", type(target_element))
+                    element_str = str(target_element)
+                    id_match = re.search(r'id\s*=\s*[\'"]([^\'"]+)[\'"]', element_str, re.IGNORECASE)
+                    if id_match:
+                        element_id = id_match.group(1)
+                        print("Extracted ElementId from string (other type):", element_id)
+                        element_selector = f'#{element_id}'
+                    else:
+                        print("Could not extract ID from non-DOMElementNode type.")
+
+                # If no selector was constructed, raise an error
+                if not element_selector:
+                    raise ValueError("Could not construct a valid selector from the target element.")
+
+                print("Constructed Selector:", element_selector)
+                
+                # Locate the element using the constructed selector
+                element = await page.wait_for_selector(element_selector, timeout=5000, state="visible")
+                if not element:
+                    raise ValueError(f"Element not found with selector: {element_selector}")
+                
+                # Verify the element's ID
+                try:
+                    verified_id = await element.evaluate('(el) => el.getAttribute("id")')
+                    print("Verified ElementId:", verified_id)
+                except Exception as e:
+                    print(f"Failed to verify ID: {e}")
+                
 
             if target_identifier and target_identifier != self.last_cursor_selector:
             # Insert a MoveCursorToElement action before the current action

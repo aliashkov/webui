@@ -35,7 +35,7 @@ async def test_custom_context():
         page = await context.get_current_page()
         print( page)
         await page.goto("https://duckduckgo.com/")
-        await context.move_to_element('[data-state="suggesting"]')
+        await context.move_to_element('[class="searchbox_input__rnFzM"]')
         
         print("Context", context)
         print("Browser", browser)
