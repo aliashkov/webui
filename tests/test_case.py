@@ -29,17 +29,17 @@ async def test_custom_context():
         context = CustomBrowserContext(
             browser=browser,
             config=BrowserContextConfig(
-                browser_window_size=BrowserContextWindowSize(width=1280, height=1100)
+                browser_window_size=BrowserContextWindowSize(width=1100, height=1000)
             )
         )
-        
+
         print(context)
-        
+
         controller = CustomController()
         page = await context.get_current_page()
         emunium = EmuniumPlaywright(page)
         print( page)
-        
+
         print("Context:", context)
         print("Browser:", browser)
         agent = CustomAgent(

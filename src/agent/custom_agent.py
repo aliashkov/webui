@@ -217,15 +217,15 @@ class CustomAgent(Agent):
         logger.info(f"🧠 All Memory: \n{step_info.memory}")
 
     @time_execution_async("--get_next_action")
-    async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None) -> AgentOutput:
+    async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False) -> AgentOutput:
         """Get next action from LLM and insert cursor movement if targeting a new element."""
         fixed_input_messages = self._convert_input_messages(input_messages)
         """ print("Message", fixed_input_messages) """
         ai_message = self.llm.invoke(fixed_input_messages)
-        
+
         self.message_manager._add_message_with_tokens(ai_message)
-        
-    
+
+
         if hasattr(ai_message, "reasoning_content"):
             logger.info("🤯 Start Deep Thinking: ")
             logger.info(ai_message.reasoning_content)
@@ -265,10 +265,10 @@ class CustomAgent(Agent):
                 index = nested_dict.get("index")
 
             target_identifier = None
-            
+
             state = await self.browser_context.get_state()
-            
-            
+
+
 
             """  print(clickable_elements) """
         # Determine the target identifier (selector or index-based)
@@ -277,7 +277,7 @@ class CustomAgent(Agent):
             elif index is not None:
                 emunium = EmuniumPlaywright(self.browser_context)
                 page = await self.browser_context.get_current_page()
-                
+
                 print("Page:", page)
                 print("Emunium:", emunium)
                 print("Index:", index)
@@ -285,14 +285,14 @@ class CustomAgent(Agent):
 
                 # Extract the target element from selector_map using the index
                 target_element = state.selector_map[index]
-                
+
                 # Initialize selector
                 element_selector = None
 
                 # Check if target_element is a DOMElementNode
                 if str(type(target_element).__name__) == 'DOMElementNode':
                     print("Target element is a DOMElementNode.")
-                    
+
                     # Try to access attributes from DOMElementNode
                     try:
                         element_id = target_element.get_attribute('id') if hasattr(target_element, 'get_attribute') else None
@@ -313,7 +313,7 @@ class CustomAgent(Agent):
                             element_id = id_match.group(2)
                             print("Extracted ElementId from string:", element_id)
                             element_selector = f'#{element_id}'
-                        
+
                         # Extract class
                         if not element_selector:
                             class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
@@ -323,7 +323,7 @@ class CustomAgent(Agent):
                                 tag_name = tag_match.group(1).lower() if tag_match else 'button'
                                 element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
                                 print("Using class-based selector:", element_selector)
-                        
+
                         # Extract data-ved
                         if not element_selector:
                             data_ved_match = re.search(r'data-ved\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
@@ -333,7 +333,7 @@ class CustomAgent(Agent):
                                 tag_name = tag_match.group(1).lower() if tag_match else 'button'
                                 element_selector = f'{tag_name}[data-ved="{data_ved}"]'
                                 print("Using data-ved selector:", element_selector)
-                        
+
                         # No usable attributes found
                         if not element_selector:
                             print("No usable attributes found in DOMElementNode string.")
@@ -349,7 +349,7 @@ class CustomAgent(Agent):
                         element_id = id_match.group(2)
                         print("Extracted ElementId from string (other type):", element_id)
                         element_selector = f'#{element_id}'
-                    
+
                     # Extract class
                     if not element_selector:
                         class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
@@ -359,7 +359,7 @@ class CustomAgent(Agent):
                             tag_name = tag_match.group(1).lower() if tag_match else 'button'
                             element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
                             print("Using class-based selector:", element_selector)
-                    
+
                     # Extract data-ved
                     if not element_selector:
                         data_ved_match = re.search(r'data-ved\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
@@ -369,7 +369,7 @@ class CustomAgent(Agent):
                             tag_name = tag_match.group(1).lower() if tag_match else 'button'
                             element_selector = f'{tag_name}[data-ved="{data_ved}"]'
                             print("Using data-ved selector:", element_selector)
-                    
+
                     # No usable attributes found
                     if not element_selector:
                         print("Could not extract ID or other attributes from non-DOMElementNode type.")
@@ -379,51 +379,51 @@ class CustomAgent(Agent):
                     raise ValueError("Could not construct a valid selector from the target element.")
 
                 print("Constructed Selector:", element_selector)
-                
+
                 # Locate the element using the constructed selector
                 TIMEOUT_MS = 30000
-                
+
                 id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
-                
+
                 class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-                
+
                 if (id_match):
                     element_id = id_match.group(2)
                     print("Extracted 2 from string:", element_id)
                     print("Self browser", browserContext)
 
                     print("Element Selector", element_selector)
-                    
+
                     element_selector = f'[id="{element_id}"]'
-                    
+
                     if (browserContext):
-                      await browserContext.move_to_element(element_selector)
-                
-                
+                      await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
+
+
                 elif (class_match):
                     element_id = class_match.group(2)
                     print("Extracted 3 from string:", element_id)
                     print("Self browser", browserContext)
 
                     print("Element Selector", element_selector)
-                    
+
 
                     element_selector = f'[class="{element_id}"]'
-                    
+
                     if (browserContext):
                       await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
-                    
+
                 element = await page.wait_for_selector(element_selector, timeout=TIMEOUT_MS, state="visible")
                 if not element:
                     raise ValueError(f"Element not found with selector: {element_selector}")
-                
+
                 # Verify the element's ID
                 try:
                     verified_id = await element.evaluate('(el) => el.getAttribute("id")')
                     print("Verified ElementId:", verified_id)
                 except Exception as e:
                     print(f"Failed to verify ID: {e}")
-                
+
 
             if target_identifier and target_identifier != self.last_cursor_selector:
             # Insert a MoveCursorToElement action before the current action
@@ -434,7 +434,7 @@ class CustomAgent(Agent):
                 updated_actions.append(self.ActionModel(**move_action))
                 logger.debug(f"Inserted cursor movement to {target_identifier}")
                 self.last_cursor_selector = target_identifier
-        
+
                 # Replace default actions with custom ones where applicable
                 if action_dict.get("name") == "input_text" and target_identifier:
                     updated_actions.append(self.ActionModel(
@@ -513,7 +513,7 @@ class CustomAgent(Agent):
         return plan
 
     @time_execution_async("--step")
-    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[CustomBrowserContext] = None) -> None:
+    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[bool] = False) -> None:
         """Execute one step of the task"""
         logger.info(f"\n📍 Step {self.state.n_steps}")
         state = None
@@ -525,8 +525,8 @@ class CustomAgent(Agent):
         try:
             state = await self.browser_context.get_state()
             """ print("State", state) """
-            
-            
+
+
             await self._raise_if_stopped_or_paused()
 
             self.message_manager.add_state_message(state, self.state.last_action, self.state.last_result, step_info,
@@ -536,14 +536,14 @@ class CustomAgent(Agent):
             if self.settings.planner_llm and self.state.n_steps % self.settings.planner_interval == 0:
                 await self._run_planner()
             input_messages = self.message_manager.get_messages()
-            
+
             """ print("Input messages", input_messages) """
             tokens = self._message_manager.state.history.current_tokens
-            
+
             """ print("Tokens", tokens) """
 
             try:
-                model_output = await self.get_next_action(input_messages, browserContext = browserContext)
+                model_output = await self.get_next_action(input_messages, browserContext = browserContext, useOwnBrowser = useOwnBrowser)
                 self.update_step_info(model_output, step_info)
                 self.state.n_steps += 1
 
@@ -618,13 +618,13 @@ class CustomAgent(Agent):
                 )
                 self._make_history_item(model_output, state, result, metadata)
 
-    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[CustomBrowserContext] = False) -> AgentHistoryList:
+    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False) -> AgentHistoryList:
         """Execute the task with maximum number of steps"""
         try:
             self._log_agent_run()
-            
+
             print("Agent" , self)
-            
+
             print("Browser Context" , browserContext)
 
             # Execute initial actions if provided

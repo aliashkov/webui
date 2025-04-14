@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from playwright.async_api import BrowserContext as PlaywrightBrowserContext
 from browser_use.browser.browser import Browser
 from browser_use.browser.context import BrowserContext, BrowserContextConfig
@@ -22,10 +23,10 @@ class CustomBrowserContext(BrowserContext):
             self.emunium = EmuniumPlaywright(page)
             logger.debug("EmuniumPlaywright initialized")
 
-    async def move_to_element(self, selector: str, timeout: int = 30000, useOwnBrowser = False):
+    async def move_to_element(self, selector: str, timeout: int = 30000, useOwnBrowser: Optional[bool] = False):
         """Move the mouse to the center of an element with human-like trajectory using emunium."""
         try:
-            
+
             print("Use own browser", useOwnBrowser)
             await self._ensure_emunium_initialized()  # Ensure emunium is ready
             page = await self.get_current_page()
@@ -38,7 +39,7 @@ class CustomBrowserContext(BrowserContext):
               await self.emunium.move_to(element, 0 , 0)
             else:
               await self.emunium.move_to(element, 0 , 87)
-              
+
         except Exception as e:
             logger.error(f"Error moving to element {selector}: {str(e)}")
             raise
