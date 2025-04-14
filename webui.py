@@ -493,7 +493,7 @@ async def run_custom_agent(
                 max_input_tokens=max_input_tokens,
                 generate_gif=True
             )
-        history = await _global_agent.run(max_steps=max_steps)
+        history = await _global_agent.run(max_steps=max_steps, browserContext=_global_browser_context) # type: ignore
 
         history_file = os.path.join(save_agent_history_path, f"{_global_agent.state.agent_id}.json")
         _global_agent.save_history(history_file)
