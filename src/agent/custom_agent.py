@@ -223,9 +223,6 @@ class CustomAgent(Agent):
         """ print("Message", fixed_input_messages) """
         ai_message = self.llm.invoke(fixed_input_messages)
         
-        """ print("===================================================================") """
-        
-        """ print("AI Message", ai_message) """
         self.message_manager._add_message_with_tokens(ai_message)
 
         if hasattr(ai_message, "reasoning_content"):
@@ -256,7 +253,6 @@ class CustomAgent(Agent):
         updated_actions = []
         for action in parsed.action:
             action_dict = action.model_dump(exclude_unset=True)
-            print("Action dict", action_dict)
 
             # Extract selector and index, handling nested structures
             selector = None
@@ -267,9 +263,6 @@ class CustomAgent(Agent):
                 selector = nested_dict.get("selector")
                 index = nested_dict.get("index")
 
-            print("Selector", selector)
-            print("Index", index)
-            print("Context", BrowserContext)
             target_identifier = None
             
             state = await self.browser_context.get_state()
@@ -396,9 +389,12 @@ class CustomAgent(Agent):
                     print("Extracted 2 from string:", element_id)
                     print("Self browser", browserContext)
 
-                    element_selector = f'#{element_id}'
+                    print("Element Selector", element_selector)
+                    
+                    element_selector = f'[id="{element_id}"]'
+                    
                     if (browserContext):
-                      await browserContext.move_to_element('[id="L2AGLb"]')
+                      await browserContext.move_to_element(element_selector)
                     
                 element = await page.wait_for_selector(element_selector, timeout=TIMEOUT_MS, state="visible")
                 if not element:
