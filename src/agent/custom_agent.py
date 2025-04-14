@@ -395,16 +395,11 @@ class CustomAgent(Agent):
                     element_id = id_match.group(2)
                     print("Extracted 2 from string:", element_id)
                     print("Self browser", browserContext)
-                    
-                    
-                    
+
                     element_selector = f'#{element_id}'
                     if (browserContext):
                       await browserContext.move_to_element('[id="L2AGLb"]')
                     
-
-                
-
                 element = await page.wait_for_selector(element_selector, timeout=TIMEOUT_MS, state="visible")
                 if not element:
                     raise ValueError(f"Element not found with selector: {element_selector}")
