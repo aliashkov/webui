@@ -399,7 +399,8 @@ class CustomAgent(Agent):
                     
                     
                     element_selector = f'#{element_id}'
-                    element = await page.wait_for_selector('[id="L2AGLb"]')
+                    if (browserContext):
+                      await browserContext.move_to_element('[id="L2AGLb"]')
                     
 
                 
