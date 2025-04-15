@@ -29,7 +29,7 @@ async def test_custom_context():
         context = CustomBrowserContext(
             browser=browser,
             config=BrowserContextConfig(
-                browser_window_size=BrowserContextWindowSize(width=1100, height=1000)
+                browser_window_size=BrowserContextWindowSize(width=1280, height=1100)
             )
         )
 
