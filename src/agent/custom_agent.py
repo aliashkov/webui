@@ -345,7 +345,7 @@ class CustomAgent(Agent):
                     # Locate the element using the constructed selector
                     TIMEOUT_MS = 30000
 
-                    id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
+                    id_match = re.search(r'\bid\s*=\s*([\'"])(.*?)\1', element_str, re.IGNORECASE)
                     class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
 
                     if id_match:
