@@ -339,44 +339,6 @@ class CustomAgent(Agent):
                                 print("No usable attributes found in DOMElementNode string.")
 
                     # Handle other unexpected types
-                    else:
-                        print("Target element is not a DOMElementNode, type:", type(target_element))
-                        element_str = str(target_element)
-
-                        # Extract id
-                        id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
-                        if id_match:
-                            element_id = id_match.group(2)
-                            print("Extracted ElementId from string (other type):", element_id)
-                            element_selector = f'#{element_id}'
-
-                        # Extract class
-                        if not element_selector:
-                            class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-                            if class_match:
-                                class_name = class_match.group(2)
-                                tag_match = re.search(r'<(\w+)', element_str)
-                                tag_name = tag_match.group(1).lower() if tag_match else 'button'
-                                element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
-                                print("Using class-based selector:", element_selector)
-
-                        # Extract data-ved
-                        if not element_selector:
-                            data_ved_match = re.search(r'data-ved\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-                            if data_ved_match:
-                                data_ved = data_ved_match.group(2)
-                                tag_match = re.search(r'<(\w+)', element_str)
-                                tag_name = tag_match.group(1).lower() if tag_match else 'button'
-                                element_selector = f'{tag_name}[data-ved="{data_ved}"]'
-                                print("Using data-ved selector:", element_selector)
-
-                        # No usable attributes found
-                        if not element_selector:
-                            print("Could not extract ID or other attributes from non-DOMElementNode type.")
-
-                    # If no selector was constructed, raise an error
-                    if not element_selector:
-                        raise ValueError("Could not construct a valid selector from the target element.")
 
                     print("Constructed Selector:", element_selector)
 
@@ -403,17 +365,6 @@ class CustomAgent(Agent):
                         element_selector = f'[class="{element_id}"]'
                         if browserContext:
                             await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
-
-                    element = await page.wait_for_selector(element_selector, timeout=TIMEOUT_MS, state="visible")
-                    if not element:
-                        raise ValueError(f"Element not found with selector: {element_selector}")
-
-                    # Verify the element's ID
-                    try:
-                        verified_id = await element.evaluate('(el) => el.getAttribute("id")')
-                        print("Verified ElementId:", verified_id)
-                    except Exception as e:
-                        print(f"Failed to verify ID: {e}")
 
                 if target_identifier and target_identifier != self.last_cursor_selector:
                     # Insert a MoveCursorToElement action before the current action
