@@ -1110,7 +1110,7 @@ def create_ui(theme_name="Ocean"):
                 fn=run_deep_search,
                 inputs=[research_task_input, max_search_iteration_input, max_query_per_iter_input, llm_provider,
                         llm_model_name, ollama_num_ctx, llm_temperature, llm_base_url, llm_api_key, use_vision,
-                        use_own_browser, headless, chrome_cdp, enable_emunium],
+                        use_own_browser, headless, chrome_cdp],
                 outputs=[markdown_output_display, markdown_download, stop_research_button, research_button]
             )
             # Bind the stop button click event after errors_output is defined

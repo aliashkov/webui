@@ -255,66 +255,99 @@ class CustomAgent(Agent):
 
         # Check for actions targeting elements and insert cursor movement if needed
         updated_actions = []
-        for action in parsed.action:
-            action_dict = action.model_dump(exclude_unset=True)
+        if enable_emunium:
+            for action in parsed.action:
+                action_dict = action.model_dump(exclude_unset=True)
 
-            # Extract selector and index, handling nested structures
-            selector = None
-            index = None
-            action_name = next(iter(action_dict)) if action_dict else None
-            if action_name and isinstance(action_dict.get(action_name), dict):
-                nested_dict = action_dict[action_name]
-                selector = nested_dict.get("selector")
-                index = nested_dict.get("index")
+                # Extract selector and index, handling nested structures
+                selector = None
+                index = None
+                action_name = next(iter(action_dict)) if action_dict else None
+                if action_name and isinstance(action_dict.get(action_name), dict):
+                    nested_dict = action_dict[action_name]
+                    selector = nested_dict.get("selector")
+                    index = nested_dict.get("index")
 
-            target_identifier = None
+                target_identifier = None
+                state = await self.browser_context.get_state()
 
-            state = await self.browser_context.get_state()
+                # Determine the target identifier (selector or index-based)
+                if selector:
+                    target_identifier = selector
+                elif index is not None:
+                    emunium = EmuniumPlaywright(self.browser_context)
+                    page = await self.browser_context.get_current_page()
 
+                    print("Page:", page)
+                    print("Emunium:", emunium)
+                    print("Index:", index)
+                    print("Current Element:", state.selector_map[index])
 
+                    # Extract the target element from selector_map using the index
+                    target_element = state.selector_map[index]
 
-            """  print(clickable_elements) """
-        # Determine the target identifier (selector or index-based)
-            if selector:
-                target_identifier = selector
-            elif index is not None:
-                emunium = EmuniumPlaywright(self.browser_context)
-                page = await self.browser_context.get_current_page()
+                    # Initialize selector
+                    element_selector = None
 
-                print("Page:", page)
-                print("Emunium:", emunium)
-                print("Index:", index)
-                print("Current Element:", state.selector_map[index])
+                    # Check if target_element is a DOMElementNode
+                    if str(type(target_element).__name__) == 'DOMElementNode':
+                        print("Target element is a DOMElementNode.")
 
-                # Extract the target element from selector_map using the index
-                target_element = state.selector_map[index]
+                        # Try to access attributes from DOMElementNode
+                        try:
+                            element_id = target_element.get_attribute('id') if hasattr(target_element, 'get_attribute') else None
+                            if element_id:
+                                print("Extracted ElementId from DOMElementNode:", element_id)
+                                element_selector = f'#{element_id}'
+                        except Exception as e:
+                            print(f"Failed to get attributes from DOMElementNode: {e}")
 
-                # Initialize selector
-                element_selector = None
+                        # Fallback: Use string representation if attributes are inaccessible
+                        if not element_selector:
+                            print("Falling back to string representation of DOMElementNode...")
+                            element_str = str(target_element)
 
-                # Check if target_element is a DOMElementNode
-                if str(type(target_element).__name__) == 'DOMElementNode':
-                    print("Target element is a DOMElementNode.")
+                            # Extract id
+                            id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
+                            if id_match:
+                                element_id = id_match.group(2)
+                                print("Extracted ElementId from string:", element_id)
+                                element_selector = f'#{element_id}'
 
-                    # Try to access attributes from DOMElementNode
-                    try:
-                        element_id = target_element.get_attribute('id') if hasattr(target_element, 'get_attribute') else None
-                        if element_id:
-                            print("Extracted ElementId from DOMElementNode:", element_id)
-                            element_selector = f'#{element_id}'
-                    except Exception as e:
-                        print(f"Failed to get attributes from DOMElementNode: {e}")
+                            # Extract class
+                            if not element_selector:
+                                class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
+                                if class_match:
+                                    class_name = class_match.group(2)
+                                    tag_match = re.search(r'<(\w+)', element_str)
+                                    tag_name = tag_match.group(1).lower() if tag_match else 'button'
+                                    element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
+                                    print("Using class-based selector:", element_selector)
 
-                    # Fallback: Use string representation if attributes are inaccessible
-                    if not element_selector:
-                        print("Falling back to string representation of DOMElementNode...")
+                            # Extract data-ved
+                            if not element_selector:
+                                data_ved_match = re.search(r'data-ved\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
+                                if data_ved_match:
+                                    data_ved = data_ved_match.group(2)
+                                    tag_match = re.search(r'<(\w+)', element_str)
+                                    tag_name = tag_match.group(1).lower() if tag_match else 'button'
+                                    element_selector = f'{tag_name}[data-ved="{data_ved}"]'
+                                    print("Using data-ved selector:", element_selector)
+
+                            # No usable attributes found
+                            if not element_selector:
+                                print("No usable attributes found in DOMElementNode string.")
+
+                    # Handle other unexpected types
+                    else:
+                        print("Target element is not a DOMElementNode, type:", type(target_element))
                         element_str = str(target_element)
 
                         # Extract id
                         id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
                         if id_match:
                             element_id = id_match.group(2)
-                            print("Extracted ElementId from string:", element_id)
+                            print("Extracted ElementId from string (other type):", element_id)
                             element_selector = f'#{element_id}'
 
                         # Extract class
@@ -339,119 +372,76 @@ class CustomAgent(Agent):
 
                         # No usable attributes found
                         if not element_selector:
-                            print("No usable attributes found in DOMElementNode string.")
+                            print("Could not extract ID or other attributes from non-DOMElementNode type.")
 
-                # Handle other unexpected types
-                else:
-                    print("Target element is not a DOMElementNode, type:", type(target_element))
-                    element_str = str(target_element)
+                    # If no selector was constructed, raise an error
+                    if not element_selector:
+                        raise ValueError("Could not construct a valid selector from the target element.")
 
-                    # Extract id
+                    print("Constructed Selector:", element_selector)
+
+                    # Locate the element using the constructed selector
+                    TIMEOUT_MS = 30000
+
                     id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
+                    class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
+
                     if id_match:
                         element_id = id_match.group(2)
-                        print("Extracted ElementId from string (other type):", element_id)
-                        element_selector = f'#{element_id}'
+                        print("Extracted 2 from string:", element_id)
+                        print("Self browser", browserContext)
+                        print("Element Selector", element_selector)
+                        element_selector = f'[id="{element_id}"]'
+                        if browserContext:
+                            await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
 
-                    # Extract class
-                    if not element_selector:
-                        class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-                        if class_match:
-                            class_name = class_match.group(2)
-                            tag_match = re.search(r'<(\w+)', element_str)
-                            tag_name = tag_match.group(1).lower() if tag_match else 'button'
-                            element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
-                            print("Using class-based selector:", element_selector)
+                    elif class_match:
+                        element_id = class_match.group(2)
+                        print("Extracted 3 from string:", element_id)
+                        print("Self browser", browserContext)
+                        print("Element Selector", element_selector)
+                        element_selector = f'[class="{element_id}"]'
+                        if browserContext:
+                            await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
 
-                    # Extract data-ved
-                    if not element_selector:
-                        data_ved_match = re.search(r'data-ved\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-                        if data_ved_match:
-                            data_ved = data_ved_match.group(2)
-                            tag_match = re.search(r'<(\w+)', element_str)
-                            tag_name = tag_match.group(1).lower() if tag_match else 'button'
-                            element_selector = f'{tag_name}[data-ved="{data_ved}"]'
-                            print("Using data-ved selector:", element_selector)
+                    element = await page.wait_for_selector(element_selector, timeout=TIMEOUT_MS, state="visible")
+                    if not element:
+                        raise ValueError(f"Element not found with selector: {element_selector}")
 
-                    # No usable attributes found
-                    if not element_selector:
-                        print("Could not extract ID or other attributes from non-DOMElementNode type.")
+                    # Verify the element's ID
+                    try:
+                        verified_id = await element.evaluate('(el) => el.getAttribute("id")')
+                        print("Verified ElementId:", verified_id)
+                    except Exception as e:
+                        print(f"Failed to verify ID: {e}")
 
-                # If no selector was constructed, raise an error
-                if not element_selector:
-                    raise ValueError("Could not construct a valid selector from the target element.")
+                if target_identifier and target_identifier != self.last_cursor_selector:
+                    # Insert a MoveCursorToElement action before the current action
+                    move_action = {
+                        "name": "Move cursor to element",
+                        "selector": target_identifier
+                    }
+                    updated_actions.append(self.ActionModel(**move_action))
+                    logger.debug(f"Inserted cursor movement to {target_identifier}")
+                    self.last_cursor_selector = target_identifier
 
-                print("Constructed Selector:", element_selector)
-
-                # Locate the element using the constructed selector
-                TIMEOUT_MS = 30000
-
-                id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
-
-                class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-
-                if (id_match):
-                    element_id = id_match.group(2)
-                    print("Extracted 2 from string:", element_id)
-                    print("Self browser", browserContext)
-
-                    print("Element Selector", element_selector)
-
-                    element_selector = f'[id="{element_id}"]'
-
-                    if (browserContext):
-                      await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
-
-
-                elif (class_match):
-                    element_id = class_match.group(2)
-                    print("Extracted 3 from string:", element_id)
-                    print("Self browser", browserContext)
-
-                    print("Element Selector", element_selector)
-
-
-                    element_selector = f'[class="{element_id}"]'
-
-                    if (browserContext):
-                      await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
-
-                element = await page.wait_for_selector(element_selector, timeout=TIMEOUT_MS, state="visible")
-                if not element:
-                    raise ValueError(f"Element not found with selector: {element_selector}")
-
-                # Verify the element's ID
-                try:
-                    verified_id = await element.evaluate('(el) => el.getAttribute("id")')
-                    print("Verified ElementId:", verified_id)
-                except Exception as e:
-                    print(f"Failed to verify ID: {e}")
-
-
-            if target_identifier and target_identifier != self.last_cursor_selector:
-            # Insert a MoveCursorToElement action before the current action
-                move_action = {
-                    "name": "Move cursor to element",
-                    "selector": target_identifier
-                }
-                updated_actions.append(self.ActionModel(**move_action))
-                logger.debug(f"Inserted cursor movement to {target_identifier}")
-                self.last_cursor_selector = target_identifier
-
-                # Replace default actions with custom ones where applicable
-                if action_dict.get("name") == "input_text" and target_identifier:
-                    updated_actions.append(self.ActionModel(
-                    name="Type text at element",
-                    selector=target_identifier,
-                    text=action_dict["input_text"]["text"]
-                ))
-            elif action_dict.get("name") == "click_element" and target_identifier:
-                updated_actions.append(self.ActionModel(
-                    name="Click element with human behavior",
-                    selector=target_identifier
-                ))
-            else:
-               updated_actions.append(action)
+                    # Replace default actions with custom ones where applicable
+                    if action_dict.get("name") == "input_text" and target_identifier:
+                        updated_actions.append(self.ActionModel(
+                            name="Type text at element",
+                            selector=target_identifier,
+                            text=action_dict["input_text"]["text"]
+                        ))
+                    elif action_dict.get("name") == "click_element" and target_identifier:
+                        updated_actions.append(self.ActionModel(
+                            name="Click element with human behavior",
+                            selector=target_identifier
+                        ))
+                else:
+                    updated_actions.append(action)
+        else:
+            # If enable_emunium is False, use the original actions without modification
+            updated_actions = parsed.action
 
         parsed.action = updated_actions
         if len(parsed.action) > self.settings.max_actions_per_step:
