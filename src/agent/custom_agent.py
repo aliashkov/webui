@@ -217,13 +217,16 @@ class CustomAgent(Agent):
         logger.info(f"🧠 All Memory: \n{step_info.memory}")
 
     @time_execution_async("--get_next_action")
-    async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False) -> AgentOutput:
+    async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium = False) -> AgentOutput:
         """Get next action from LLM and insert cursor movement if targeting a new element."""
         fixed_input_messages = self._convert_input_messages(input_messages)
         """ print("Message", fixed_input_messages) """
         ai_message = self.llm.invoke(fixed_input_messages)
 
         self.message_manager._add_message_with_tokens(ai_message)
+        
+        
+        print("Enable Emunium", enable_emunium)
 
 
         if hasattr(ai_message, "reasoning_content"):
@@ -513,7 +516,7 @@ class CustomAgent(Agent):
         return plan
 
     @time_execution_async("--step")
-    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[bool] = False) -> None:
+    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[bool] = False, enable_emunium = False) -> None:
         """Execute one step of the task"""
         logger.info(f"\n📍 Step {self.state.n_steps}")
         state = None
@@ -543,7 +546,7 @@ class CustomAgent(Agent):
             """ print("Tokens", tokens) """
 
             try:
-                model_output = await self.get_next_action(input_messages, browserContext = browserContext, useOwnBrowser = useOwnBrowser)
+                model_output = await self.get_next_action(input_messages, browserContext = browserContext, useOwnBrowser = useOwnBrowser, enable_emunium = enable_emunium)
                 self.update_step_info(model_output, step_info)
                 self.state.n_steps += 1
 
@@ -618,7 +621,7 @@ class CustomAgent(Agent):
                 )
                 self._make_history_item(model_output, state, result, metadata)
 
-    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False) -> AgentHistoryList:
+    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium=False) -> AgentHistoryList:
         """Execute the task with maximum number of steps"""
         try:
             self._log_agent_run()
@@ -656,7 +659,7 @@ class CustomAgent(Agent):
                     if self.state.stopped:  # Allow stopping while paused
                         break
 
-                await self.step(step_info, browserContext = browserContext, useOwnBrowser = useOwnBrowser)
+                await self.step(step_info, browserContext = browserContext, useOwnBrowser = useOwnBrowser, enable_emunium = enable_emunium)
 
                 if self.state.history.is_done():
                     if self.settings.validate_output and step < max_steps - 1:

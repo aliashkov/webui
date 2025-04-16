@@ -191,7 +191,8 @@ async def run_browser_agent(
         max_actions_per_step,
         tool_calling_method,
         chrome_cdp,
-        max_input_tokens
+        max_input_tokens,
+        enable_emunium
 ):
     try:
         # Disable recording if the checkbox is unchecked
@@ -239,7 +240,8 @@ async def run_browser_agent(
                 max_actions_per_step=max_actions_per_step,
                 tool_calling_method=tool_calling_method,
                 chrome_cdp=chrome_cdp,
-                max_input_tokens=max_input_tokens
+                max_input_tokens=max_input_tokens,
+                enable_emunium=enable_emunium
             )
         elif agent_type == "custom":
             final_result, errors, model_actions, model_thoughts, trace_file, history_file = await run_custom_agent(
@@ -260,7 +262,8 @@ async def run_browser_agent(
                 max_actions_per_step=max_actions_per_step,
                 tool_calling_method=tool_calling_method,
                 chrome_cdp=chrome_cdp,
-                max_input_tokens=max_input_tokens
+                max_input_tokens=max_input_tokens,
+                enable_emunium=enable_emunium
             )
         else:
             raise ValueError(f"Invalid agent type: {agent_type}")
@@ -306,6 +309,7 @@ async def run_browser_agent(
             None,  # history_file
             None,  # trace_file
             gr.update(value="Stop", interactive=True),  # Re-enable stop button
+            
             gr.update(interactive=True)  # Re-enable run button
         )
 
@@ -327,7 +331,8 @@ async def run_org_agent(
         max_actions_per_step,
         tool_calling_method,
         chrome_cdp,
-        max_input_tokens
+        max_input_tokens,
+        enable_emunium
 ):
     try:
         global _global_browser, _global_browser_context, _global_agent
@@ -430,7 +435,8 @@ async def run_custom_agent(
         max_actions_per_step,
         tool_calling_method,
         chrome_cdp,
-        max_input_tokens
+        max_input_tokens,
+        enable_emunium,
 ):
     try:
         global _global_browser, _global_browser_context, _global_agent
@@ -476,7 +482,9 @@ async def run_custom_agent(
                 )
             )
  
-        print(use_own_browser)
+        print("Use Emunium", enable_emunium)
+        
+        enable_emunium = False if headless else enable_emunium
      
         # Create and run agent
         if _global_agent is None:
@@ -495,7 +503,7 @@ async def run_custom_agent(
                 max_input_tokens=max_input_tokens,
                 generate_gif=True
             )
-        history = await _global_agent.run(max_steps=max_steps, browserContext=_global_browser_context, useOwnBrowser=use_own_browser) # type: ignore
+        history = await _global_agent.run(max_steps=max_steps, browserContext=_global_browser_context, useOwnBrowser=use_own_browser, enable_emunium=enable_emunium) # type: ignore
 
         history_file = os.path.join(save_agent_history_path, f"{_global_agent.state.agent_id}.json")
         _global_agent.save_history(history_file)
@@ -551,7 +559,8 @@ async def run_with_stream(
         max_actions_per_step,
         tool_calling_method,
         chrome_cdp,
-        max_input_tokens
+        max_input_tokens,
+        enable_emunium
 ):
     global _global_agent
 
@@ -583,7 +592,8 @@ async def run_with_stream(
             max_actions_per_step=max_actions_per_step,
             tool_calling_method=tool_calling_method,
             chrome_cdp=chrome_cdp,
-            max_input_tokens=max_input_tokens
+            max_input_tokens=max_input_tokens,
+            enable_emunium=enable_emunium
         )
         # Add HTML content at the start of the result array
         yield [gr.update(visible=False)] + list(result)
@@ -616,7 +626,8 @@ async def run_with_stream(
                     max_actions_per_step=max_actions_per_step,
                     tool_calling_method=tool_calling_method,
                     chrome_cdp=chrome_cdp,
-                    max_input_tokens=max_input_tokens
+                    max_input_tokens=max_input_tokens,
+                    enable_emunium=enable_emunium
                 )
             )
 
@@ -940,6 +951,12 @@ def create_ui(theme_name="Ocean"):
                             info="Enable saving browser recordings",
                             interactive=True
                         )
+                        enable_emunium = gr.Checkbox(
+                            label="Enable Emunium",
+                            value=True,
+                            info="Enable emunium for more human-like actions",
+                            interactive=True
+                        )
 
                     with gr.Row():
                         window_w = gr.Number(
@@ -1072,7 +1089,7 @@ def create_ui(theme_name="Ocean"):
                     use_own_browser, keep_browser_open, headless, disable_security, window_w, window_h,
                     save_recording_path, save_agent_history_path, save_trace_path,  # Include the new path
                     enable_recording, task, add_infos, max_steps, use_vision, max_actions_per_step,
-                    tool_calling_method, chrome_cdp, max_input_tokens
+                    tool_calling_method, chrome_cdp, max_input_tokens, enable_emunium
                 ],
                 outputs=[
                     browser_view,  # Browser view
@@ -1093,7 +1110,7 @@ def create_ui(theme_name="Ocean"):
                 fn=run_deep_search,
                 inputs=[research_task_input, max_search_iteration_input, max_query_per_iter_input, llm_provider,
                         llm_model_name, ollama_num_ctx, llm_temperature, llm_base_url, llm_api_key, use_vision,
-                        use_own_browser, headless, chrome_cdp],
+                        use_own_browser, headless, chrome_cdp, enable_emunium],
                 outputs=[markdown_output_display, markdown_download, stop_research_button, research_button]
             )
             # Bind the stop button click event after errors_output is defined
