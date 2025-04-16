@@ -346,6 +346,7 @@ class CustomAgent(Agent):
                     TIMEOUT_MS = 30000
 
                     id_match = re.search(r'\bid\s*=\s*([\'"])(.*?)\1', element_str, re.IGNORECASE)
+                    aria_match = re.search(r'aria-label\s*=\s*([\'"])(.*?)\1', element_str, re.IGNORECASE)
                     class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
 
                     if id_match:
@@ -354,6 +355,15 @@ class CustomAgent(Agent):
                         print("Self browser", browserContext)
                         print("Element Selector", element_selector)
                         element_selector = f'[id="{element_id}"]'
+                        if browserContext:
+                            await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
+                            
+                    elif aria_match:
+                        element_aria = aria_match.group(2)
+                        print("Extracted aria-label from string:", element_aria)
+                        print("Self browser", browserContext)
+                        print("Element Selector", element_selector)
+                        element_selector = f'[aria-label="{element_aria}"]'
                         if browserContext:
                             await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
 
