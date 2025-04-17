@@ -11,6 +11,7 @@ import asyncio
 import time
 import platform
 import re
+from browser_use import ActionModel
 from browser_use.agent.prompts import SystemPrompt, AgentMessagePrompt
 from browser_use.agent.service import Agent
 from browser_use.agent.message_manager.utils import convert_input_messages, extract_json_from_model_output, \
@@ -195,7 +196,11 @@ class CustomAgent(Agent):
         self.ActionModel = self.controller.registry.create_action_model()
         # Create output model with the dynamic actions
         self.AgentOutput = CustomAgentOutput.type_with_custom_actions(self.ActionModel)
-
+        
+        
+        
+     	# @observe(name='controller.multi_act')
+	
     def update_step_info(
             self, model_output: CustomAgentOutput, step_info: CustomAgentStepInfo = None
     ):
@@ -409,6 +414,56 @@ class CustomAgent(Agent):
            parsed.action = parsed.action[:self.settings.max_actions_per_step]
         self._log_response(parsed)
         return parsed
+    
+    @time_execution_async('--multi-act (agent)')
+    async def multi_act_custom(
+            self,
+            actions: list[ActionModel],
+            check_for_new_elements: bool = True,
+        ) -> list[ActionResult]:
+            """Execute multiple actions"""
+            results = []
+            
+            print("555555")
+
+            cached_selector_map = await self.browser_context.get_selector_map()
+    
+            cached_path_hashes = set(e.hash.branch_path_hash for e in cached_selector_map.values())
+
+            await self.browser_context.remove_highlights()
+
+            for i, action in enumerate(actions):
+                if action.get_index() is not None and i != 0:
+                    new_state = await self.browser_context.get_state()
+                    new_path_hashes = set(e.hash.branch_path_hash for e in new_state.selector_map.values())
+                    if check_for_new_elements and not new_path_hashes.issubset(cached_path_hashes):
+                        # next action requires index but there are new elements on the page
+                        msg = f'Something new appeared after action {i} / {len(actions)}'
+                        logger.info(msg)
+                        results.append(ActionResult(extracted_content=msg, include_in_memory=True))
+                        break
+
+                await self._raise_if_stopped_or_paused()
+
+                result = await self.controller.act(
+                    action,
+                    self.browser_context,
+                    self.settings.page_extraction_llm,
+                    self.sensitive_data,
+                    self.settings.available_file_paths,
+                    context=self.context,
+                )
+
+                results.append(result)
+
+                logger.debug(f'Executed action {i + 1} / {len(actions)}')
+                if results[-1].is_done or results[-1].error or i == len(actions) - 1:
+                    break
+
+                await asyncio.sleep(self.browser_context.config.wait_between_actions)
+                # hash all elements. if it is a subset of cached_state its fine - else break (new elements on page)
+
+            return results   
 
     async def _run_planner(self) -> Optional[str]:
         """Run the planner to analyze state and suggest next steps"""
@@ -518,7 +573,7 @@ class CustomAgent(Agent):
                 self.message_manager._remove_state_message_by_index(-1)
                 raise e
 
-            result: list[ActionResult] = await self.multi_act(model_output.action)
+            result: list[ActionResult] = await self.multi_act_custom(model_output.action)
             for ret_ in result:
                 if ret_.extracted_content and "Extracted page" in ret_.extracted_content:
                     # record every extracted page
@@ -583,7 +638,7 @@ class CustomAgent(Agent):
 
             # Execute initial actions if provided
             if self.initial_actions:
-                result = await self.multi_act(self.initial_actions, check_for_new_elements=False)
+                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False)
                 self.state.last_result = result
 
             step_info = CustomAgentStepInfo(
