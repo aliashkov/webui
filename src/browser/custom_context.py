@@ -120,6 +120,9 @@ class CustomBrowserContext(BrowserContext):
 
     async def type_at_element(self, selector: str, text: str, timeout: int = 30000):
         """Move to an element and type text with human-like behavior using emunium."""
+        print("Self emunium", self._emunium)
+        print("Self emunium", self._emunium) 
+        
         try:
             await self._ensure_emunium_initialized()  # Ensure emunium is ready
             page = await self.get_current_page()

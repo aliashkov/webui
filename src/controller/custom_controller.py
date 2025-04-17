@@ -28,6 +28,7 @@ class CustomController(Controller):
 
         @self.registry.action("Paste text from clipboard")
         async def paste_from_clipboard(browser: CustomBrowserContext):
+            print("Custom Input 55555555555")
             text = pyperclip.paste()
             await browser.type_at_element("*:focus", text)  # Type into focused element
             return ActionResult(extracted_content=text)
