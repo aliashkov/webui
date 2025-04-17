@@ -442,7 +442,7 @@ class CustomAgent(Agent):
                         break
 
                 await self._raise_if_stopped_or_paused()
-                result = await self.controller.act(
+                result = await self.controller.act_custom( # type: ignore
                     action,
                     self.browser_context,
                     self.settings.page_extraction_llm,
