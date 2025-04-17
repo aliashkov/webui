@@ -4,7 +4,8 @@ import pyperclip
 from typing import Optional, Type, Dict, List
 from pydantic import BaseModel
 from browser_use.agent.views import ActionResult, ActionModel
-from browser_use.controller.service import Controller, Context  # Import Context TypeVar
+from browser_use.controller.service import Controller, Context
+from browser_use.controller.views import InputTextAction  # Import InputTextAction for param_model
 from browser_use.utils import time_execution_sync
 from langchain_core.language_models.chat_models import BaseChatModel
 from src.browser.custom_context import CustomBrowserContext
@@ -61,6 +62,33 @@ class CustomController(Controller):
                 logger.error(f"Failed to type at element: {str(e)}")
                 return ActionResult(error=str(e))
 
+        @self.registry.action(
+            "Input text into a input interactive element",
+            param_model=InputTextAction
+        )
+        async def input_text(params: InputTextAction, browser, has_sensitive_data: bool = False):
+            """Custom input text action overriding browser_use's default."""
+            print("Custom Input")  # Verify custom action is used
+            try:
+                if params.index not in await browser.get_selector_map():
+                    raise Exception(f"Element index {params.index} does not exist - retry or use alternative actions")
+
+                element_node = await browser.get_dom_element_by_index(params.index)
+                css_selector = browser._enhanced_css_selector_for_element(
+                    element_node, include_dynamic_attributes=True
+                )
+                await browser.type_at_element(css_selector, params.text)
+                if not has_sensitive_data:
+                    msg = f"⌨️ Custom Input '{params.text}' into index {params.index}"
+                else:
+                    msg = f"⌨️ Custom Input sensitive data into index {params.index}"
+                logger.info(msg)
+                logger.debug(f"Element xpath: {element_node.xpath}")
+                return ActionResult(extracted_content=msg, include_in_memory=True)
+            except Exception as e:
+                logger.error(f"Failed to input text at index {params.index}: {str(e)}")
+                return ActionResult(error=str(e))
+
     @time_execution_sync('--act_custom')
     async def act_custom(
         self,
@@ -69,12 +97,9 @@ class CustomController(Controller):
         page_extraction_llm: Optional[BaseChatModel] = None,
         sensitive_data: Optional[Dict[str, str]] = None,
         available_file_paths: Optional[List[str]] = None,
-        context: Optional[Context] = None,  # Use imported Context TypeVar
+        context: Optional[Context] = None,
     ) -> ActionResult:
         """Execute a custom action using the registry."""
-        print("Custom actions", action)
-        
-        
         try:
             for action_name, params in action.model_dump(exclude_unset=True).items():
                 if params is not None:
