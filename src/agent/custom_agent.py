@@ -442,15 +442,6 @@ class CustomAgent(Agent):
                         break
 
                 await self._raise_if_stopped_or_paused()
-                
-                print("Action", action)
-                print("Browser context", self.browser_context)
-                print("Settings page extraction llm", self.settings.page_extraction_llm)
-                print("Sensitive data", self.sensitive_data)
-                print("Available file paths", self.settings.available_file_paths)
-                print("Available file paths", self.context)
-                
-
                 result = await self.controller.act(
                     action,
                     self.browser_context,
