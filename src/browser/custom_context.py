@@ -1,12 +1,20 @@
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Dict
 from playwright.async_api import BrowserContext as PlaywrightBrowserContext
 from browser_use.browser.browser import Browser
 from browser_use.browser.context import BrowserContext, BrowserContextConfig
-from emunium import EmuniumPlaywright  # Import emunium
+from emunium import EmuniumPlaywright
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class DOMElementNode:
+    tag_name: str
+    attributes: Dict[str, str]
+    xpath: str
+    highlight_index: Optional[int] = None
 
 class CustomBrowserContext(BrowserContext):
     def __init__(
@@ -27,7 +35,7 @@ class CustomBrowserContext(BrowserContext):
                     if page is None:
                         raise RuntimeError("No current page available")
                     
-                                # Get browser window dimensions
+                    # Get browser window dimensions
                     window_dimensions = await page.evaluate('''() => {
                         return {
                             'width': window.outerWidth,
@@ -37,11 +45,11 @@ class CustomBrowserContext(BrowserContext):
                     
                     # Ensure viewport is set before creating Emunium instance
                     if page.viewport_size is None:
-                            await page.set_viewport_size({
-                                'width': window_dimensions['width'],
-                                'height': window_dimensions['height']
-                            })
-                            print(f"Set viewport size to window dimensions: {window_dimensions}")
+                        await page.set_viewport_size({
+                            'width': window_dimensions['width'],
+                            'height': window_dimensions['height']
+                        })
+                        print(f"Set viewport size to window dimensions: {window_dimensions}")
                     else:
                         logger.debug(f"Current viewport size: {page.viewport_size}")
                     
@@ -104,7 +112,7 @@ class CustomBrowserContext(BrowserContext):
                 raise ValueError(f"Element with selector {selector} not found")
 
             # Use emunium to click the element
-            await self.emunium.click_at(element)
+            await self._emunium.click_at(element)  # Fixed: Use _emunium
             logger.info(f"Clicked element {selector}")
         except Exception as e:
             logger.error(f"Error clicking element {selector}: {str(e)}")
@@ -120,7 +128,7 @@ class CustomBrowserContext(BrowserContext):
                 raise ValueError(f"Element with selector {selector} not found")
 
             # Use emunium to type at the element
-            await self.emunium.type_at(element, text)
+            await self._emunium.type_at(element, text)  # Fixed: Use _emunium
             logger.info(f"Typed '{text}' at element {selector}")
         except Exception as e:
             logger.error(f"Error typing at element {selector}: {str(e)}")

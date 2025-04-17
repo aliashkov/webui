@@ -420,6 +420,9 @@ class CustomAgent(Agent):
             self,
             actions: list[ActionModel],
             check_for_new_elements: bool = True,
+            browserContext: Optional[CustomBrowserContext] = None, 
+            useOwnBrowser: Optional[bool] = False, 
+            enable_emunium=False,
         ) -> list[ActionResult]:
             """Execute multiple actions"""
             results = []
@@ -442,9 +445,9 @@ class CustomAgent(Agent):
                         break
 
                 await self._raise_if_stopped_or_paused()
-                result = await self.controller.act_custom( # type: ignore
+                result = await self.controller.act( # type: ignore
                     action,
-                    self.browser_context,
+                    self.browser_context, # type: ignore
                     self.settings.page_extraction_llm,
                     self.sensitive_data,
                     self.settings.available_file_paths,
@@ -570,7 +573,7 @@ class CustomAgent(Agent):
                 self.message_manager._remove_state_message_by_index(-1)
                 raise e
 
-            result: list[ActionResult] = await self.multi_act_custom(model_output.action)
+            result: list[ActionResult] = await self.multi_act_custom(model_output.action, browserContext=browserContext, useOwnBrowser=useOwnBrowser,enable_emunium=enable_emunium)
             for ret_ in result:
                 if ret_.extracted_content and "Extracted page" in ret_.extracted_content:
                     # record every extracted page
@@ -635,7 +638,7 @@ class CustomAgent(Agent):
 
             # Execute initial actions if provided
             if self.initial_actions:
-                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False)
+                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=False)
                 self.state.last_result = result
 
             step_info = CustomAgentStepInfo(

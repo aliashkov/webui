@@ -9,14 +9,16 @@ from browser_use.controller.views import InputTextAction  # Import InputTextActi
 from browser_use.utils import time_execution_sync
 from langchain_core.language_models.chat_models import BaseChatModel
 from src.browser.custom_context import CustomBrowserContext
+from browser_use.browser.context import BrowserContext
 
 logger = logging.getLogger(__name__)
 
 class CustomController(Controller):
     def __init__(self, exclude_actions: list[str] = [], output_model: Optional[Type[BaseModel]] = None):
+        self._emunium = None  # Use protected attribute
+        self._emunium_lock = asyncio.Lock()  # Add lock for thread safety
         super().__init__(exclude_actions=exclude_actions, output_model=output_model)
         self._register_custom_actions()
-
     def _register_custom_actions(self):
         """Register all custom browser actions."""
         @self.registry.action("Copy text to clipboard")
@@ -66,6 +68,7 @@ class CustomController(Controller):
             "Input text into a input interactive element",
             param_model=InputTextAction
         )
+        
         async def input_text(params: InputTextAction, browser, has_sensitive_data: bool = False):
             """Custom input text action overriding browser_use's default."""
             print("Custom Input")  # Verify custom action is used
@@ -93,14 +96,16 @@ class CustomController(Controller):
     async def act_custom(
         self,
         action: ActionModel,
-        browser_context: CustomBrowserContext,
+        browser_context: BrowserContext,
         page_extraction_llm: Optional[BaseChatModel] = None,
         sensitive_data: Optional[Dict[str, str]] = None,
         available_file_paths: Optional[List[str]] = None,
         context: Optional[Context] = None,
+        browserContext: Optional[CustomBrowserContext] = None
     ) -> ActionResult:
         """Execute a custom action using the registry."""
         try:
+            print("Browser context", browserContext)
             for action_name, params in action.model_dump(exclude_unset=True).items():
                 if params is not None:
                     result = await self.registry.execute_action(
@@ -129,7 +134,7 @@ class CustomController(Controller):
     async def multi_act_custom(
         self,
         actions: List[ActionModel],
-        browser_context: CustomBrowserContext,
+        browser_context: BrowserContext,
         check_for_new_elements: bool = True,
     ) -> List[ActionResult]:
         """Execute multiple actions."""
