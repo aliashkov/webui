@@ -361,7 +361,7 @@ class CustomAgent(Agent):
                         print("Element Selector", element_selector)
                         element_selector = f'[id="{element_id}"]'
                         if browserContext:
-                            await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
+                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
                             
                     elif aria_match:
                         element_aria = aria_match.group(2)
@@ -370,7 +370,7 @@ class CustomAgent(Agent):
                         print("Element Selector", element_selector)
                         element_selector = f'[aria-label="{element_aria}"]'
                         if browserContext:
-                            await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
+                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
 
                     elif class_match:
                         element_id = class_match.group(2)
@@ -379,7 +379,7 @@ class CustomAgent(Agent):
                         print("Element Selector", element_selector)
                         element_selector = f'[class="{element_id}"]'
                         if browserContext:
-                            await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
+                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
 
                 if target_identifier and target_identifier != self.last_cursor_selector:
                     # Insert a MoveCursorToElement action before the current action
@@ -445,13 +445,14 @@ class CustomAgent(Agent):
                         break
 
                 await self._raise_if_stopped_or_paused()
-                result = await self.controller.act( # type: ignore
+                result = await self.controller.act_custom( # type: ignore
                     action,
                     self.browser_context, # type: ignore
                     self.settings.page_extraction_llm,
                     self.sensitive_data,
                     self.settings.available_file_paths,
                     context=self.context,
+                    enable_emunium=enable_emunium
                 )
 
                 results.append(result)

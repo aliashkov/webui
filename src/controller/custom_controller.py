@@ -10,6 +10,8 @@ from browser_use.utils import time_execution_sync
 from langchain_core.language_models.chat_models import BaseChatModel
 from src.browser.custom_context import CustomBrowserContext
 from browser_use.browser.context import BrowserContext
+from emunium import EmuniumPlaywright
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ class CustomController(Controller):
         async def move_cursor_to_element(browser: CustomBrowserContext, selector: str):
             """Move the cursor to an element with human-like trajectory."""
             try:
-                await browser.move_to_element(selector)
+                """ await browser.move_to_element(selector) """
                 return ActionResult(extracted_content=f"Moved cursor to element with selector {selector}")
             except Exception as e:
                 logger.error(f"Failed to move cursor to element: {str(e)}")
@@ -47,7 +49,7 @@ class CustomController(Controller):
         async def click_element_human(browser: CustomBrowserContext, selector: str):
             """Move cursor to and click an element with human-like behavior."""
             try:
-                await browser.move_to_element(selector)
+                """ await browser.move_to_element(selector) """
                 await browser.click_element(selector)
                 return ActionResult(extracted_content=f"Clicked element with selector {selector}")
             except Exception as e:
@@ -70,6 +72,8 @@ class CustomController(Controller):
             param_model=InputTextAction
         )
         
+        
+        
         async def input_text(params: InputTextAction, browser, has_sensitive_data: bool = False):
             """Custom input text action overriding browser_use's default."""
             print("Custom Input")  # Verify custom action is used
@@ -78,17 +82,29 @@ class CustomController(Controller):
                     raise Exception(f"Element index {params.index} does not exist - retry or use alternative actions")
 
                 element_node = await browser.get_dom_element_by_index(params.index)
-                css_selector = browser._enhanced_css_selector_for_element(
-                    element_node, include_dynamic_attributes=True
-                )
-                await browser.type_at_element(css_selector, params.text)
-                if not has_sensitive_data:
-                    msg = f"⌨️ Custom Input '{params.text}' into index {params.index}"
+                print("Self emunium", self._emunium_lock)
+                print("Emunium", self._emunium)
+                if self._emunium:
+                    css_selector = browser._enhanced_css_selector_for_element(
+                        element_node, include_dynamic_attributes=True
+                    )
+                    await browser.type_at_element(css_selector, params.text)
+                    if not has_sensitive_data:
+                        msg = f"⌨️ Custom Input '{params.text}' into index {params.index}"
+                    else:
+                        msg = f"⌨️ Custom Input sensitive data into index {params.index}"
+                    logger.info(msg)
+                    logger.debug(f"Element xpath: {element_node.xpath}")
+                    return ActionResult(extracted_content=msg, include_in_memory=True)
                 else:
-                    msg = f"⌨️ Custom Input sensitive data into index {params.index}"
-                logger.info(msg)
-                logger.debug(f"Element xpath: {element_node.xpath}")
-                return ActionResult(extracted_content=msg, include_in_memory=True)
+                    await browser._input_text_element_node(element_node, params.text)
+                    if not has_sensitive_data:
+                        msg = f'⌨️  Input {params.text} into index {params.index}'
+                    else:
+                        msg = f'⌨️  Input sensitive data into index {params.index}'
+                    logger.info(msg)
+                    logger.debug(f'Element xpath: {element_node.xpath}')
+                    return ActionResult(extracted_content=msg, include_in_memory=True)
             except Exception as e:
                 logger.error(f"Failed to input text at index {params.index}: {str(e)}")
                 return ActionResult(error=str(e))
@@ -102,11 +118,13 @@ class CustomController(Controller):
         sensitive_data: Optional[Dict[str, str]] = None,
         available_file_paths: Optional[List[str]] = None,
         context: Optional[Context] = None,
-        browserContext: Optional[CustomBrowserContext] = None
+        enable_emunium=False, 
     ) -> ActionResult:
         """Execute a custom action using the registry."""
         try:
-            print("Browser context", browserContext)
+            print("Enable emunium", enable_emunium)
+            if enable_emunium:
+                self._emunium = enable_emunium
             for action_name, params in action.model_dump(exclude_unset=True).items():
                 if params is not None:
                     result = await self.registry.execute_action(
