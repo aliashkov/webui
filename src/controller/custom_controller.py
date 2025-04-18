@@ -125,42 +125,43 @@ class CustomController(Controller):
             "Input text into a input interactive element",
             param_model=InputTextAction
         )
-        
-        
-        
-        async def input_text(params: InputTextAction, browser, has_sensitive_data: bool = False):
-            """Custom input text action overriding browser_use's default."""
-            print("Custom Input")  # Verify custom action is used
-            print("Browser Context 5555", self.browserContextOpt)
+        async def input_text(params: InputTextAction, browser: CustomBrowserContext, has_sensitive_data: bool = False, browserContextOpt: Optional[CustomBrowserContext] = None):
+            """Custom input text action using browserContextOpt."""
+            print("Custom Input")
+            print("Browser Context Opt:", self.browserContextOpt)
             try:
-                if params.index not in await browser.get_selector_map():
+                # Use browserContextOpt if provided, otherwise fall back to browser
+                target_browser = browserContextOpt if browserContextOpt else browser
+                if browserContextOpt:
+                    self.browserContextOpt = browserContextOpt
+
+                if params.index not in await target_browser.get_selector_map():
                     raise Exception(f"Element index {params.index} does not exist - retry or use alternative actions")
 
-                element_node = await browser.get_dom_element_by_index(params.index)
+                element_node = await target_browser.get_dom_element_by_index(params.index)
                 print("Self emunium", self._emunium_lock)
                 print("Emunium", self._emunium)
                 
-                if self._emunium:
-                    css_selector = browser._enhanced_css_selector_for_element(
+                async with self._emunium_lock:
+                    css_selector = target_browser._enhanced_css_selector_for_element(
                         element_node, include_dynamic_attributes=True
                     )
-                    await browser.type_at_element(css_selector, params.text) # type: ignore
-                    if not has_sensitive_data:
-                        msg = f"⌨️ Custom Input '{params.text}' into index {params.index}"
+                    print(f"Generated CSS selector: {css_selector}")
+                    
+                    # Ensure page stability
+                    page = await target_browser.get_current_page()
+                    await page.wait_for_load_state('networkidle')
+                    
+                    if self._emunium:
+                        await target_browser.type_at_element(css_selector, params.text)
+                        msg = f"⌨️ Custom Input into index {params.index}"
                     else:
-                        msg = f"⌨️ Custom Input sensitive data into index {params.index}"
+                        await target_browser._input_text_element_node(element_node, params.text)
+                        msg = f"⌨️ Input into index {params.index}"
+                    
                     logger.info(msg)
                     logger.debug(f"Element xpath: {element_node.xpath}")
                     return ActionResult(extracted_content=msg, include_in_memory=True)
-                else:
-                    await browser._input_text_element_node(element_node, params.text)
-                    if not has_sensitive_data:
-                        msg = f'⌨️  Input {params.text} into index {params.index}'
-                    else:
-                        msg = f'⌨️  Input sensitive data into index {params.index}'
-                        logger.info(msg)
-                        logger.debug(f'Element xpath: {element_node.xpath}')
-                        return ActionResult(extracted_content=msg, include_in_memory=True)
             except Exception as e:
                 logger.error(f"Failed to input text at index {params.index}: {str(e)}")
                 return ActionResult(error=str(e))
