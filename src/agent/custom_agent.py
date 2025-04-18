@@ -453,7 +453,7 @@ class CustomAgent(Agent):
                     self.settings.available_file_paths,
                     context=self.context,
                     enable_emunium=enable_emunium,
-                    browserContext=browserContext
+                    browserContextOpt=browserContext
                 )
 
                 results.append(result)

@@ -19,6 +19,7 @@ class CustomController(Controller):
     def __init__(self, exclude_actions: list[str] = [], output_model: Optional[Type[BaseModel]] = None):
         self._emunium = None  # Use protected attribute
         self._emunium_lock = asyncio.Lock()  # Add lock for thread safety
+        self.browserContextOpt = None
         super().__init__(exclude_actions=exclude_actions, output_model=output_model)
         self._register_custom_actions()
     def _register_custom_actions(self):
@@ -130,6 +131,7 @@ class CustomController(Controller):
         async def input_text(params: InputTextAction, browser, has_sensitive_data: bool = False):
             """Custom input text action overriding browser_use's default."""
             print("Custom Input")  # Verify custom action is used
+            print("Browser Context 5555", self.browserContextOpt)
             try:
                 if params.index not in await browser.get_selector_map():
                     raise Exception(f"Element index {params.index} does not exist - retry or use alternative actions")
@@ -172,12 +174,13 @@ class CustomController(Controller):
         available_file_paths: Optional[List[str]] = None,
         context: Optional[Context] = None,
         enable_emunium=False,  # Add comma here
-        browserContext: Optional[CustomBrowserContext] = None,
+        browserContextOpt: Optional[CustomBrowserContext] = None,
     ) -> ActionResult:
         """Execute a custom action using the registry."""
         try:
-            print("Custom browser context", browserContext)
-            if browserContext:
+            print("Custom browser context", browserContextOpt)
+            if browserContextOpt:
+                self.browserContextOpt = browserContextOpt
                 """ page = browserContext.move_to_element() # type: ignore
                 print("Page", page.viewport_size) # type: ignore """
             print("Enable emunium", enable_emunium)

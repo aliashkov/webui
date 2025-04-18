@@ -27,30 +27,34 @@ class CustomBrowserContext(BrowserContext):
         self._emunium_lock = asyncio.Lock()  # Add lock for thread safety
 
     async def _ensure_emunium_initialized(self):
-        page = await self.get_current_page()
-        if page is None:
-            raise RuntimeError("No current page available")
+        """Lazily initialize EmuniumPlaywright with the current page if not already done."""
+        if self._emunium is None:
+            async with self._emunium_lock:
+                if self._emunium is None:
+                    page = await self.get_current_page()
+                    if page is None:
+                        raise RuntimeError("No current page available")
                     
-        # Get browser window dimensions
-        window_dimensions = await page.evaluate('''() => {
-            return {
-                'width': window.outerWidth,
-                'height': window.outerHeight
-            };
-        }''')
+                    # Get browser window dimensions
+                    window_dimensions = await page.evaluate('''() => {
+                        return {
+                            'width': window.outerWidth,
+                            'height': window.outerHeight
+                        };
+                    }''')
                     
                     # Ensure viewport is set before creating Emunium instance
-        if page.viewport_size is None:
-            await page.set_viewport_size({
-                'width': window_dimensions['width'],
-                'height': window_dimensions['height']
-            })
-            print(f"Set viewport size to window dimensions: {window_dimensions}")
-        else:
-            logger.debug(f"Current viewport size: {page.viewport_size}")
+                    if page.viewport_size is None:
+                        await page.set_viewport_size({
+                            'width': window_dimensions['width'],
+                            'height': window_dimensions['height']
+                        })
+                        print(f"Set viewport size to window dimensions: {window_dimensions}")
+                    else:
+                        logger.debug(f"Current viewport size: {page.viewport_size}")
                     
-        self._emunium = EmuniumPlaywright(page)
-        print("EmuniumPlaywright initialized with viewport size: %s", page.viewport_size)
+                    self._emunium = EmuniumPlaywright(page)
+                    print("EmuniumPlaywright initialized with viewport size: %s", page.viewport_size)
 
     async def move_to_element(self, selector: str, timeout: int = 30000, useOwnBrowser: Optional[bool] = False):
         """Move the mouse to the center of an element with human-like trajectory using emunium."""
@@ -123,7 +127,9 @@ class CustomBrowserContext(BrowserContext):
             if not element:
                 raise ValueError(f"Element with selector {selector} not found")
 
-
+            # First move to the element with proper offset
+            await self._emunium.move_to(element, 0, 87)
+            
             # Then type at the element
             await self._emunium.type_at(element, text)
             logger.info(f"Typed '{text}' at element {selector}")
