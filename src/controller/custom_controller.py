@@ -72,19 +72,32 @@ class CustomController(Controller):
             'Scroll down the page by pixel amount - if no amount is specified, scroll down one page',
             param_model=ScrollAction,
         )
-        async def scroll_down(params: ScrollAction, browser: BrowserContext, browserContextOpt: Optional[CustomBrowserContext] = None):
-            """Scroll down the page by a specified amount or one page."""
+        async def scroll_down(params: ScrollAction, browser: CustomBrowserContext, browserContextOpt: Optional[CustomBrowserContext] = None):
+            """Scroll down the page by a specified amount or one page with human-like behavior using Emunium."""
             try:
-                print("Custom scroll down", scroll_down)
+                print("Custom scroll down")
                 # Use browserContextOpt if provided, otherwise fall back to browser
                 page = await browser.get_current_page()
+                # Wait for page stability
+                """ await page.wait_for_load_state('networkidle') """
+
+                """ if self._emunium:
+                    window_height = await page.evaluate('window.innerHeight')
+                    scroll_amount = params.amount if params.amount is not None else window_height
+                        
+                        # Use Emunium's scroll method for human-like behavior
+                    await browser.scroll_down(scroll_amount)
+                    amount = f'{scroll_amount} pixels'
+                else: """
+                    # Fallback to Playwright scrolling
                 if params.amount is not None:
                     await page.evaluate(f'window.scrollBy(0, {params.amount});')
+                    amount = f'{params.amount} pixels'
                 else:
                     await page.evaluate('window.scrollBy(0, window.innerHeight);')
+                    amount = 'one page'
 
-                amount = f'{params.amount} pixels' if params.amount is not None else 'one page'
-                msg = f'🔍  Scrolled down the page by {amount}'
+                msg = f'🔍 Scrolled down the page by {amount} with {"Emunium" if self._emunium else "Playwright"}'
                 logger.info(msg)
                 return ActionResult(
                     extracted_content=msg,
@@ -174,7 +187,7 @@ class CustomController(Controller):
                     
                     # Ensure page stability
                     page = await target_browser.get_current_page()
-                    await page.wait_for_load_state('networkidle')
+                    """ await page.wait_for_load_state('networkidle') """
                     
                     if self._emunium:
                         await target_browser.type_at_element(css_selector, params.text)

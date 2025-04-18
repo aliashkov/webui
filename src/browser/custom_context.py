@@ -67,7 +67,7 @@ class CustomBrowserContext(BrowserContext):
                 raise RuntimeError("No current page available")
             
             # Wait for page stability
-            await page.wait_for_load_state('networkidle')
+            """ await page.wait_for_load_state('networkidle') """
             await page.evaluate('document.body.style.zoom = 1')
             
             element = await page.wait_for_selector(selector, timeout=timeout)
@@ -100,7 +100,7 @@ class CustomBrowserContext(BrowserContext):
                 raise RuntimeError("No current page available")
             
             # Wait for page stability
-            await page.wait_for_load_state('networkidle')
+            """ await page.wait_for_load_state('networkidle') """
             await page.evaluate('document.body.style.zoom = 1')
             
             element = await page.wait_for_selector(selector, timeout=timeout)
@@ -128,4 +128,41 @@ class CustomBrowserContext(BrowserContext):
             logger.info(f"Typed '{text}' at element {selector} at ({x_offset}, {y_offset})")
         except Exception as e:
             logger.error(f"Error typing at element {selector}: {str(e)}")
+            raise
+        
+    async def scroll_down(self, amount: Optional[int] = None):
+        """Scroll down the page by a specified amount or one page with human-like behavior using Emunium."""
+        try:
+            await self._ensure_emunium_initialized()
+            page = await self.get_current_page()
+            if page is None:
+                raise RuntimeError("No current page available")
+            
+            # Wait for page stability
+            """ await page.wait_for_load_state('networkidle') """
+            await page.evaluate('document.body.style.zoom = 1')
+            
+            # Get window height for one-page scroll
+            window_height = await page.evaluate('window.innerHeight')
+            scroll_amount = amount if amount is not None else window_height
+            
+            async with self._emunium_lock:
+                # Get current scroll position
+                current_scroll_y = await page.evaluate('window.scrollY')
+                # Calculate target scroll position
+                target_scroll_y = current_scroll_y + scroll_amount
+                
+                # Use Emunium's scroll_to for human-like scrolling
+                await self._emunium.scroll_to(0, target_scroll_y)
+                scroll_type = 'Emunium'
+            
+            amount_str = f'{scroll_amount} pixels' if amount is not None else 'one page'
+            logger.info(f"Scrolled down by {amount_str} with {scroll_type}")
+            
+            # Log scroll position for debugging
+            scroll_position = await page.evaluate('window.scrollY')
+            print(f"Scroll position after scroll_down: {scroll_position}")
+        
+        except Exception as e:
+            logger.error(f"Error scrolling down: {str(e)}")
             raise
