@@ -5,7 +5,7 @@ from typing import Optional, Type, Dict, List
 from pydantic import BaseModel
 from browser_use.agent.views import ActionResult, ActionModel
 from browser_use.controller.service import Controller, Context
-from browser_use.controller.views import InputTextAction  # Import InputTextAction for param_model
+from browser_use.controller.views import InputTextAction, ClickElementAction  # Import InputTextAction for param_model
 from browser_use.utils import time_execution_sync
 from langchain_core.language_models.chat_models import BaseChatModel
 from src.browser.custom_context import CustomBrowserContext
@@ -66,6 +66,59 @@ class CustomController(Controller):
             except Exception as e:
                 logger.error(f"Failed to type at element: {str(e)}")
                 return ActionResult(error=str(e))
+            
+            
+            
+        @self.registry.action("Click element", param_model=ClickElementAction)
+        async def click_element(params: ClickElementAction, browser: CustomBrowserContext):
+            """Click an element by index, with emunium support for alternative clicking methods."""
+            try:
+                async with self._emunium_lock:  # Ensure thread safety for emunium access
+                    session = await browser.get_session()
+
+                    if params.index not in await browser.get_selector_map():
+                        raise Exception(f"Element with index {params.index} does not exist - retry or use alternative actions")
+
+                    element_node = await browser.get_dom_element_by_index(params.index)
+                    initial_pages = len(session.context.pages)
+
+                    # Check if element is a file uploader
+                    if await browser.is_file_uploader(element_node):
+                        msg = f"Index {params.index} - has an element which opens file upload dialog. To upload files please use a specific function to upload files"
+                        logger.info(msg)
+                        return ActionResult(extracted_content=msg, include_in_memory=True)
+
+                    msg = None
+
+                    if self._emunium:
+                        # Use emunium-specific clicking method with enhanced CSS selector
+                        css_selector = browser._enhanced_css_selector_for_element(
+                            element_node, include_dynamic_attributes=True
+                        )
+                        await browser.click_element(css_selector)
+                        msg = f"🖱️ Emunium Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"
+                    else:
+                        # Default clicking method
+                        download_path = await browser._click_element_node(element_node)
+                        if download_path:
+                            msg = f"💾 Downloaded file to {download_path}"
+                        else:
+                            msg = f"🖱️ Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"
+
+                    logger.info(msg)
+                    logger.debug(f"Element xpath: {element_node.xpath}")
+
+                    # Handle new tab if opened
+                    if len(session.context.pages) > initial_pages:
+                        new_tab_msg = "New tab opened - switching to it"
+                        msg += f" - {new_tab_msg}"
+                        logger.info(new_tab_msg)
+                        await browser.switch_to_tab(-1)
+
+                    return ActionResult(extracted_content=msg, include_in_memory=True)
+            except Exception as e:
+                logger.warning(f"Element not clickable with index {params.index} - most likely the page changed: {str(e)}")
+                return ActionResult(error=str(e))    
 
         @self.registry.action(
             "Input text into a input interactive element",
