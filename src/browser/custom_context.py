@@ -123,9 +123,7 @@ class CustomBrowserContext(BrowserContext):
             if not element:
                 raise ValueError(f"Element with selector {selector} not found")
 
-            # First move to the element with proper offset
-            await self._emunium.move_to(element, 0, 87)
-            
+
             # Then type at the element
             await self._emunium.type_at(element, text)
             logger.info(f"Typed '{text}' at element {selector}")

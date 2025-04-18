@@ -177,6 +177,9 @@ class CustomController(Controller):
         """Execute a custom action using the registry."""
         try:
             print("Custom browser context", browserContext)
+            if browserContext:
+                """ page = browserContext.move_to_element() # type: ignore
+                print("Page", page.viewport_size) # type: ignore """
             print("Enable emunium", enable_emunium)
             if enable_emunium:
                 self._emunium = enable_emunium
