@@ -53,7 +53,7 @@ async def test_custom_context():
             use_vision=False,
             max_actions_per_step=3
         )
-        history = await agent.run(max_steps=10, browserContext=context)
+        history = await agent.run(max_steps=10, browserContext=context, enable_emunium=True)
         print("Final Result:", history.final_result())
         await context.close()
         await browser.close()

@@ -61,8 +61,8 @@ class CustomController(Controller):
         async def type_text_at_element(browser: CustomBrowserContext, selector: str, text: str):
             """Move cursor to an element and type text with human-like behavior."""
             try:
-                await browser.move_to_element(selector)
-                await browser.type_at_element(selector, text)
+                """ await browser.move_to_element(selector)
+                await browser.type_at_element(selector, text) """
                 return ActionResult(extracted_content=f"Typed '{text}' at element {selector}")
             except Exception as e:
                 logger.error(f"Failed to type at element: {str(e)}")
@@ -144,7 +144,7 @@ class CustomController(Controller):
                     css_selector = browser._enhanced_css_selector_for_element(
                         element_node, include_dynamic_attributes=True
                     )
-                    await self.browserContextOpt.type_at_element(css_selector, params.text) # type: ignore
+                    await browser.type_at_element(css_selector, params.text) # type: ignore
                     if not has_sensitive_data:
                         msg = f"⌨️ Custom Input '{params.text}' into index {params.index}"
                     else:
