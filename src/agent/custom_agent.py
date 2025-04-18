@@ -452,7 +452,8 @@ class CustomAgent(Agent):
                     self.sensitive_data,
                     self.settings.available_file_paths,
                     context=self.context,
-                    enable_emunium=enable_emunium
+                    enable_emunium=enable_emunium,
+                    browserContext=browserContext
                 )
 
                 results.append(result)
@@ -574,7 +575,7 @@ class CustomAgent(Agent):
                 self.message_manager._remove_state_message_by_index(-1)
                 raise e
 
-            result: list[ActionResult] = await self.multi_act_custom(model_output.action, browserContext=browserContext, useOwnBrowser=useOwnBrowser,enable_emunium=enable_emunium)
+            result: list[ActionResult] = await self.multi_act_custom(model_output.action, browserContext=browserContext, useOwnBrowser=useOwnBrowser,enable_emunium=enable_emunium,)
             for ret_ in result:
                 if ret_.extracted_content and "Extracted page" in ret_.extracted_content:
                     # record every extracted page

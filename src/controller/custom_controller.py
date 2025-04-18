@@ -155,9 +155,9 @@ class CustomController(Controller):
                     msg = f'⌨️  Input {params.text} into index {params.index}'
                 else:
                     msg = f'⌨️  Input sensitive data into index {params.index}'
-                logger.info(msg)
-                logger.debug(f'Element xpath: {element_node.xpath}')
-                return ActionResult(extracted_content=msg, include_in_memory=True)
+                    logger.info(msg)
+                    logger.debug(f'Element xpath: {element_node.xpath}')
+                    return ActionResult(extracted_content=msg, include_in_memory=True)
             except Exception as e:
                 logger.error(f"Failed to input text at index {params.index}: {str(e)}")
                 return ActionResult(error=str(e))
@@ -171,10 +171,12 @@ class CustomController(Controller):
         sensitive_data: Optional[Dict[str, str]] = None,
         available_file_paths: Optional[List[str]] = None,
         context: Optional[Context] = None,
-        enable_emunium=False, 
+        enable_emunium=False,  # Add comma here
+        browserContext: Optional[CustomBrowserContext] = None,
     ) -> ActionResult:
         """Execute a custom action using the registry."""
         try:
+            print("Custom browser context", browserContext)
             print("Enable emunium", enable_emunium)
             if enable_emunium:
                 self._emunium = enable_emunium
