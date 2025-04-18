@@ -287,6 +287,9 @@ class CustomAgent(Agent):
                     print("Emunium:", emunium)
                     print("Index:", index)
                     print("Current Element:", state.selector_map[index])
+                    print("Action:", action)
+                    print("Action dict:", action_dict)
+                    print("Action name:", action_name)
 
                     # Extract the target element from selector_map using the index
                     target_element = state.selector_map[index]

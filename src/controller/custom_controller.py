@@ -5,7 +5,7 @@ from typing import Optional, Type, Dict, List
 from pydantic import BaseModel
 from browser_use.agent.views import ActionResult, ActionModel
 from browser_use.controller.service import Controller, Context
-from browser_use.controller.views import InputTextAction, ClickElementAction  # Import InputTextAction for param_model
+from browser_use.controller.views import InputTextAction, ClickElementAction, ScrollAction  # Import InputTextAction for param_model
 from browser_use.utils import time_execution_sync
 from langchain_core.language_models.chat_models import BaseChatModel
 from src.browser.custom_context import CustomBrowserContext
@@ -68,8 +68,32 @@ class CustomController(Controller):
                 logger.error(f"Failed to type at element: {str(e)}")
                 return ActionResult(error=str(e))
             
-            
-            
+        @self.registry.action(
+            'Scroll down the page by pixel amount - if no amount is specified, scroll down one page',
+            param_model=ScrollAction,
+        )
+        async def scroll_down(params: ScrollAction, browser: BrowserContext, browserContextOpt: Optional[CustomBrowserContext] = None):
+            """Scroll down the page by a specified amount or one page."""
+            try:
+                print("Custom scroll down", scroll_down)
+                # Use browserContextOpt if provided, otherwise fall back to browser
+                page = await browser.get_current_page()
+                if params.amount is not None:
+                    await page.evaluate(f'window.scrollBy(0, {params.amount});')
+                else:
+                    await page.evaluate('window.scrollBy(0, window.innerHeight);')
+
+                amount = f'{params.amount} pixels' if params.amount is not None else 'one page'
+                msg = f'🔍  Scrolled down the page by {amount}'
+                logger.info(msg)
+                return ActionResult(
+                    extracted_content=msg,
+                    include_in_memory=True,
+                )
+            except Exception as e:
+                logger.error(f"Failed to scroll down: {str(e)}")
+                return ActionResult(error=str(e))
+                   
         @self.registry.action("Click element", param_model=ClickElementAction)
         async def click_element(params: ClickElementAction, browser: CustomBrowserContext):
             """Click an element by index, with emunium support for alternative clicking methods."""
