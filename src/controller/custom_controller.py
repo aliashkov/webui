@@ -139,11 +139,12 @@ class CustomController(Controller):
                 element_node = await browser.get_dom_element_by_index(params.index)
                 print("Self emunium", self._emunium_lock)
                 print("Emunium", self._emunium)
-                """ if self._emunium:
+                
+                if self._emunium:
                     css_selector = browser._enhanced_css_selector_for_element(
                         element_node, include_dynamic_attributes=True
                     )
-                    await browser.type_at_element(css_selector, params.text)
+                    await self.browserContextOpt.type_at_element(css_selector, params.text) # type: ignore
                     if not has_sensitive_data:
                         msg = f"⌨️ Custom Input '{params.text}' into index {params.index}"
                     else:
@@ -151,15 +152,15 @@ class CustomController(Controller):
                     logger.info(msg)
                     logger.debug(f"Element xpath: {element_node.xpath}")
                     return ActionResult(extracted_content=msg, include_in_memory=True)
-                else: """
-                await browser._input_text_element_node(element_node, params.text)
-                if not has_sensitive_data:
-                    msg = f'⌨️  Input {params.text} into index {params.index}'
                 else:
-                    msg = f'⌨️  Input sensitive data into index {params.index}'
-                    logger.info(msg)
-                    logger.debug(f'Element xpath: {element_node.xpath}')
-                    return ActionResult(extracted_content=msg, include_in_memory=True)
+                    await browser._input_text_element_node(element_node, params.text)
+                    if not has_sensitive_data:
+                        msg = f'⌨️  Input {params.text} into index {params.index}'
+                    else:
+                        msg = f'⌨️  Input sensitive data into index {params.index}'
+                        logger.info(msg)
+                        logger.debug(f'Element xpath: {element_node.xpath}')
+                        return ActionResult(extracted_content=msg, include_in_memory=True)
             except Exception as e:
                 logger.error(f"Failed to input text at index {params.index}: {str(e)}")
                 return ActionResult(error=str(e))
