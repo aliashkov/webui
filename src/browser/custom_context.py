@@ -164,6 +164,46 @@ class CustomBrowserContext(BrowserContext):
             logger.error(f"Error scrolling down: {str(e)}")
             raise
 
+    async def scroll_up(self, amount: Optional[int] = None):
+        """Scroll up the page by a specified amount or one page with human-like behavior."""
+        try:
+            await self._ensure_emunium_initialized()
+            page = await self.get_current_page()
+            if page is None:
+                raise RuntimeError("No current page available")
+            
+            # Wait for page stability
+            await page.evaluate('document.body.style.zoom = 1')
+            
+            # Get window height for one-page scroll
+            window_height = await page.evaluate('window.innerHeight')
+            scroll_amount = -(amount if amount is not None else window_height)  # Negative for scrolling up
+            
+            # Perform the scroll
+            scroll_type = await self._scroll_by_pixels(scroll_amount)
+            
+            amount_str = f'{abs(scroll_amount)} pixels' if amount is not None else 'one page'
+            logger.info(f"Scrolled up by {amount_str} with {scroll_type}")
+            
+            # Log scroll position for debugging
+            scroll_position = await page.evaluate('window.scrollY')
+            scroll_container_position = await page.evaluate('''() => {
+                const container = document.querySelector('div[style*="overflow: auto"], div[style*="overflow-y: scroll"], main[style*="overflow: auto"], section[style*="overflow: auto"]') || document.body;
+                return container.scrollTop;
+            }''')
+            print(f"Scroll position after scroll_up: window.scrollY={scroll_position}, container.scrollTop={scroll_container_position}")
+            logger.debug(f"Scroll position: window.scrollY={scroll_position}, container.scrollTop={scroll_container_position}")
+            
+            # Verify scrollability
+            scroll_height = await page.evaluate('document.body.scrollHeight')
+            logger.debug(f"Page scrollHeight: {scroll_height}, window.innerHeight: {window_height}")
+            if scroll_position == scroll_container_position == 0 and scroll_amount < 0:
+                logger.warning("Scroll position is at top; page may already be at the top or container issue")
+        
+        except Exception as e:
+            logger.error(f"Error scrolling up: {str(e)}")
+            raise
+
     async def click_element(self, selector: str, timeout: int = 30000):
         """Click an element with human-like behavior using emunium."""
         try:

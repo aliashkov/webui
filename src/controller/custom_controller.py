@@ -69,6 +69,45 @@ class CustomController(Controller):
                 return ActionResult(error=str(e))
             
         @self.registry.action(
+            'Scroll up the page by pixel amount - if no amount is specified, scroll up one page',
+            param_model=ScrollAction,
+        )
+        async def scroll_up(params: ScrollAction, browser: CustomBrowserContext, browserContextOpt: Optional[CustomBrowserContext] = None):
+            """Scroll up the page by a specified amount or one page with human-like behavior using Emunium."""
+            try:
+                print("Custom scroll up")
+                # Use browserContextOpt if provided, otherwise fall back to browser
+                page = await browser.get_current_page()
+                # Wait for page stability
+                """ await page.wait_for_load_state('networkidle') """
+
+                if self._emunium:
+                    window_height = await page.evaluate('window.innerHeight')
+                    scroll_amount = params.amount if params.amount is not None else window_height
+                    
+                    # Use Emunium's scroll method for human-like behavior
+                    await browser.scroll_up(scroll_amount)
+                    amount = f'{scroll_amount} pixels'
+                else:
+                    # Fallback to Playwright scrolling
+                    if params.amount is not None:
+                        await page.evaluate(f'window.scrollBy(0, -{params.amount});')
+                        amount = f'{params.amount} pixels'
+                    else:
+                        await page.evaluate('window.scrollBy(0, -window.innerHeight);')
+                        amount = 'one page'
+
+                msg = f'🔍 Scrolled up the page by {amount} with {"Emunium" if self._emunium else "Playwright"}'
+                logger.info(msg)
+                return ActionResult(
+                    extracted_content=msg,
+                    include_in_memory=True,
+                )
+            except Exception as e:
+                logger.error(f"Failed to scroll up: {str(e)}")
+                return ActionResult(error=str(e))
+            
+        @self.registry.action(
             'Scroll down the page by pixel amount - if no amount is specified, scroll down one page',
             param_model=ScrollAction,
         )
