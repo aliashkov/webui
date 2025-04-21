@@ -150,49 +150,48 @@ class CustomController(Controller):
         async def click_element(params: ClickElementAction, browser: CustomBrowserContext):
             """Click an element by index, with emunium support for alternative clicking methods."""
             try:
-                async with self._emunium_lock:  # Ensure thread safety for emunium access
-                    session = await browser.get_session()
+                session = await browser.get_session()
 
-                    if params.index not in await browser.get_selector_map():
-                        raise Exception(f"Element with index {params.index} does not exist - retry or use alternative actions")
+                if params.index not in await browser.get_selector_map():
+                    raise Exception(f"Element with index {params.index} does not exist - retry or use alternative actions")
 
-                    element_node = await browser.get_dom_element_by_index(params.index)
-                    initial_pages = len(session.context.pages)
+                element_node = await browser.get_dom_element_by_index(params.index)
+                initial_pages = len(session.context.pages)
 
                     # Check if element is a file uploader
-                    if await browser.is_file_uploader(element_node):
-                        msg = f"Index {params.index} - has an element which opens file upload dialog. To upload files please use a specific function to upload files"
-                        logger.info(msg)
-                        return ActionResult(extracted_content=msg, include_in_memory=True)
-
-                    msg = None
-
-                    if self._emunium:
-                        # Use emunium-specific clicking method with enhanced CSS selector
-                        css_selector = browser._enhanced_css_selector_for_element(
-                            element_node, include_dynamic_attributes=True
-                        )
-                        await browser.click_element(css_selector)
-                        msg = f"🖱️ Emunium Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"
-                    else:
-                        # Default clicking method
-                        download_path = await browser._click_element_node(element_node)
-                        if download_path:
-                            msg = f"💾 Downloaded file to {download_path}"
-                        else:
-                            msg = f"🖱️ Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"
-
+                if await browser.is_file_uploader(element_node):
+                    msg = f"Index {params.index} - has an element which opens file upload dialog. To upload files please use a specific function to upload files"
                     logger.info(msg)
-                    logger.debug(f"Element xpath: {element_node.xpath}")
+                    return ActionResult(extracted_content=msg, include_in_memory=True)
+
+                msg = None
+
+                if self._emunium:
+                        # Use emunium-specific clicking method with enhanced CSS selector
+                    css_selector = browser._enhanced_css_selector_for_element(
+                        element_node, include_dynamic_attributes=True
+                    )
+                    await browser.click_element(css_selector)
+                    msg = f"🖱️ Emunium Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"
+                else:
+                    # Default clicking method
+                    download_path = await browser._click_element_node(element_node)
+                    if download_path:
+                        msg = f"💾 Downloaded file to {download_path}"
+                    else:
+                        msg = f"🖱️ Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"
+
+                logger.info(msg)
+                logger.debug(f"Element xpath: {element_node.xpath}")
 
                     # Handle new tab if opened
-                    if len(session.context.pages) > initial_pages:
-                        new_tab_msg = "New tab opened - switching to it"
-                        msg += f" - {new_tab_msg}"
-                        logger.info(new_tab_msg)
-                        await browser.switch_to_tab(-1)
+                """ if len(session.context.pages) > initial_pages:
+                    new_tab_msg = "New tab opened - switching to it"
+                    msg += f" - {new_tab_msg}"
+                    logger.info(new_tab_msg)
+                    await browser.switch_to_tab(-1) """
 
-                    return ActionResult(extracted_content=msg, include_in_memory=True)
+                return ActionResult(extracted_content=msg, include_in_memory=True)
             except Exception as e:
                 logger.warning(f"Element not clickable with index {params.index} - most likely the page changed: {str(e)}")
                 return ActionResult(error=str(e))    
@@ -218,26 +217,25 @@ class CustomController(Controller):
                 print("Self emunium", self._emunium_lock)
                 print("Emunium", self._emunium)
                 
-                async with self._emunium_lock:
-                    css_selector = target_browser._enhanced_css_selector_for_element(
-                        element_node, include_dynamic_attributes=True
-                    )
-                    print(f"Generated CSS selector: {css_selector}")
+                css_selector = target_browser._enhanced_css_selector_for_element(
+                    element_node, include_dynamic_attributes=True
+                )
+                print(f"Generated CSS selector: {css_selector}")
                     
                     # Ensure page stability
-                    page = await target_browser.get_current_page()
-                    """ await page.wait_for_load_state('networkidle') """
+                page = await target_browser.get_current_page()
+                """ await page.wait_for_load_state('networkidle') """
                     
-                    if self._emunium:
-                        await target_browser.type_at_element(css_selector, params.text)
-                        msg = f"⌨️ Custom Input into index {params.index}"
-                    else:
-                        await target_browser._input_text_element_node(element_node, params.text)
-                        msg = f"⌨️ Input into index {params.index}"
+                if self._emunium:
+                    await target_browser.type_at_element(css_selector, params.text)
+                    msg = f"⌨️ Custom Input into index {params.index}"
+                else:
+                    await target_browser._input_text_element_node(element_node, params.text)
+                    msg = f"⌨️ Input into index {params.index}"
                     
-                    logger.info(msg)
-                    logger.debug(f"Element xpath: {element_node.xpath}")
-                    return ActionResult(extracted_content=msg, include_in_memory=True)
+                logger.info(msg)
+                logger.debug(f"Element xpath: {element_node.xpath}")
+                return ActionResult(extracted_content=msg, include_in_memory=True)
             except Exception as e:
                 logger.error(f"Failed to input text at index {params.index}: {str(e)}")
                 return ActionResult(error=str(e))
