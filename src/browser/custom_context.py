@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import random
+import pyautogui
 from typing import Optional, Dict
 from playwright.async_api import BrowserContext as PlaywrightBrowserContext
 from browser_use.browser.browser import Browser
@@ -32,6 +34,7 @@ class CustomBrowserContext(BrowserContext):
             if self._emunium is None:
                 page = await self.get_current_page()
                 if page is None:
+                    logger.error("No current page available for Emunium initialization")
                     raise RuntimeError("No current page available")
                 
                 # Get browser window dimensions
@@ -41,6 +44,7 @@ class CustomBrowserContext(BrowserContext):
                         'height': window.outerHeight
                     };
                 }''')
+                logger.debug(f"Browser window dimensions: {window_dimensions}")
                 
                 dom_state = await page.content()
                 print(f"DOM state before action: {dom_state[:500]}...")  # Truncate for brevity
@@ -51,12 +55,114 @@ class CustomBrowserContext(BrowserContext):
                         'width': window_dimensions['width'],
                         'height': window_dimensions['height']
                     })
-                    print(f"Set viewport size to window dimensions: {window_dimensions}")
+                    logger.info(f"Set viewport size to window dimensions: {window_dimensions}")
                 else:
                     logger.debug(f"Current viewport size: {page.viewport_size}")
                 
-                self._emunium = EmuniumPlaywright(page)
-                print("EmuniumPlaywright initialized with viewport size: %s", page.viewport_size)
+                try:
+                    self._emunium = EmuniumPlaywright(page)
+                    logger.info("EmuniumPlaywright initialized with viewport size: %s", page.viewport_size)
+                except Exception as e:
+                    logger.error(f"Failed to initialize EmuniumPlaywright: {str(e)}")
+                    self._emunium = None
+                    raise
+                
+            else:
+                logger.debug("Emunium already initialized")
+
+    async def _scroll_by_pixels(self, scroll_amount: int):
+        """Scroll the page by a specified pixel amount with human-like behavior."""
+        try:
+            page = await self.get_current_page()
+            if page is None:
+                raise RuntimeError("No current page available")
+            
+            # Ensure browser window is focused
+            await page.bring_to_front()
+            logger.debug("Brought browser window to front")
+            
+            # Check for custom scroll container
+            scroll_container = await page.evaluate('''() => {
+                const container = document.querySelector('div[style*="overflow: auto"], div[style*="overflow-y: scroll"], main[style*="overflow: auto"], section[style*="overflow: auto"]') || document.body;
+                return {
+                    tag: container.tagName,
+                    id: container.id,
+                    class: container.className,
+                    scrollHeight: container.scrollHeight,
+                    clientHeight: container.clientHeight
+                };
+            }''')
+            logger.debug(f"Scroll container: {scroll_container}")
+            
+            async with self._emunium_lock:
+                scroll_type = 'Playwright'
+                if self._emunium:
+                    logger.debug("Using Emunium for scrolling")
+                    # Simulate human-like scrolling with small steps
+                    step_size = 100  # Scroll 100 pixels per step
+                    scroll_steps = abs(scroll_amount) // step_size
+                    scroll_direction = -1 if scroll_amount > 0 else 1  # Negative for down, positive for up
+                    
+                    for _ in range(scroll_steps):
+                        pyautogui.scroll(scroll_direction * step_size)
+                        await asyncio.sleep(random.uniform(0.05, 0.1))  # Random delay for realism
+                    
+                    remaining_scroll = abs(scroll_amount) % step_size
+                    if remaining_scroll:
+                        pyautogui.scroll(scroll_direction * remaining_scroll)
+                        await asyncio.sleep(random.uniform(0.05, 0.1))
+                    
+                    scroll_type = 'Emunium'
+                else:
+                    logger.debug("Falling back to Playwright scrolling")
+                    # Scroll the appropriate container
+                    await page.evaluate(f'window.scrollBy(0, {scroll_amount});')
+                
+                logger.debug(f"Scroll type: {scroll_type}")
+                return scroll_type
+        
+        except Exception as e:
+            logger.error(f"Error in _scroll_by_pixels: {str(e)}")
+            raise
+
+    async def scroll_down(self, amount: Optional[int] = None):
+        """Scroll down the page by a specified amount or one page with human-like behavior."""
+        try:
+            await self._ensure_emunium_initialized()
+            page = await self.get_current_page()
+            if page is None:
+                raise RuntimeError("No current page available")
+            
+            await page.evaluate('document.body.style.zoom = 1')
+            
+            # Get window height for one-page scroll
+            window_height = await page.evaluate('window.innerHeight')
+            scroll_amount = amount if amount is not None else window_height
+            
+            # Perform the scroll
+            scroll_type = await self._scroll_by_pixels(scroll_amount)
+            
+            amount_str = f'{scroll_amount} pixels' if amount is not None else 'one page'
+            logger.info(f"Scrolled down by {amount_str} with {scroll_type}")
+            
+            # Log scroll position for debugging
+            scroll_position = await page.evaluate('window.scrollY')
+            scroll_container_position = await page.evaluate('''() => {
+                const container = document.querySelector('div[style*="overflow: auto"], div[style*="overflow-y: scroll"], main[style*="overflow: auto"], section[style*="overflow: auto"]') || document.body;
+                return container.scrollTop;
+            }''')
+            print(f"Scroll position after scroll_down: window.scrollY={scroll_position}, container.scrollTop={scroll_container_position}")
+            logger.debug(f"Scroll position: window.scrollY={scroll_position}, container.scrollTop={scroll_container_position}")
+            
+            # Verify scrollability
+            scroll_height = await page.evaluate('document.body.scrollHeight')
+            logger.debug(f"Page scrollHeight: {scroll_height}, window.innerHeight: {window_height}")
+            if scroll_position == 0 and scroll_container_position == 0 and scroll_amount > 0:
+                logger.warning("Scroll position did not change; page may not be scrollable or container issue")
+        
+        except Exception as e:
+            logger.error(f"Error scrolling down: {str(e)}")
+            raise
 
     async def click_element(self, selector: str, timeout: int = 30000):
         """Click an element with human-like behavior using emunium."""
@@ -67,7 +173,6 @@ class CustomBrowserContext(BrowserContext):
                 raise RuntimeError("No current page available")
             
             # Wait for page stability
-            """ await page.wait_for_load_state('networkidle') """
             await page.evaluate('document.body.style.zoom = 1')
             
             element = await page.wait_for_selector(selector, timeout=timeout)
@@ -100,7 +205,6 @@ class CustomBrowserContext(BrowserContext):
                 raise RuntimeError("No current page available")
             
             # Wait for page stability
-            """ await page.wait_for_load_state('networkidle') """
             await page.evaluate('document.body.style.zoom = 1')
             
             element = await page.wait_for_selector(selector, timeout=timeout)
@@ -128,41 +232,4 @@ class CustomBrowserContext(BrowserContext):
             logger.info(f"Typed '{text}' at element {selector} at ({x_offset}, {y_offset})")
         except Exception as e:
             logger.error(f"Error typing at element {selector}: {str(e)}")
-            raise
-        
-    async def scroll_down(self, amount: Optional[int] = None):
-        """Scroll down the page by a specified amount or one page with human-like behavior using Emunium."""
-        try:
-            await self._ensure_emunium_initialized()
-            page = await self.get_current_page()
-            if page is None:
-                raise RuntimeError("No current page available")
-            
-            # Wait for page stability
-            """ await page.wait_for_load_state('networkidle') """
-            await page.evaluate('document.body.style.zoom = 1')
-            
-            # Get window height for one-page scroll
-            window_height = await page.evaluate('window.innerHeight')
-            scroll_amount = amount if amount is not None else window_height
-            
-            async with self._emunium_lock:
-                # Get current scroll position
-                current_scroll_y = await page.evaluate('window.scrollY')
-                # Calculate target scroll position
-                target_scroll_y = current_scroll_y + scroll_amount
-                
-                # Use Emunium's scroll_to for human-like scrolling
-                await self._emunium.scroll_to(0, target_scroll_y)
-                scroll_type = 'Emunium'
-            
-            amount_str = f'{scroll_amount} pixels' if amount is not None else 'one page'
-            logger.info(f"Scrolled down by {amount_str} with {scroll_type}")
-            
-            # Log scroll position for debugging
-            scroll_position = await page.evaluate('window.scrollY')
-            print(f"Scroll position after scroll_down: {scroll_position}")
-        
-        except Exception as e:
-            logger.error(f"Error scrolling down: {str(e)}")
             raise

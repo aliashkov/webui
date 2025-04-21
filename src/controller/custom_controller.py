@@ -81,21 +81,21 @@ class CustomController(Controller):
                 # Wait for page stability
                 """ await page.wait_for_load_state('networkidle') """
 
-                """ if self._emunium:
+                if self._emunium:
                     window_height = await page.evaluate('window.innerHeight')
                     scroll_amount = params.amount if params.amount is not None else window_height
                         
                         # Use Emunium's scroll method for human-like behavior
                     await browser.scroll_down(scroll_amount)
                     amount = f'{scroll_amount} pixels'
-                else: """
-                    # Fallback to Playwright scrolling
-                if params.amount is not None:
-                    await page.evaluate(f'window.scrollBy(0, {params.amount});')
-                    amount = f'{params.amount} pixels'
                 else:
-                    await page.evaluate('window.scrollBy(0, window.innerHeight);')
-                    amount = 'one page'
+                    # Fallback to Playwright scrolling
+                    if params.amount is not None:
+                        await page.evaluate(f'window.scrollBy(0, {params.amount});')
+                        amount = f'{params.amount} pixels'
+                    else:
+                        await page.evaluate('window.scrollBy(0, window.innerHeight);')
+                        amount = 'one page'
 
                 msg = f'🔍 Scrolled down the page by {amount} with {"Emunium" if self._emunium else "Playwright"}'
                 logger.info(msg)
