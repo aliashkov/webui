@@ -229,7 +229,8 @@ class CustomBrowserContext(BrowserContext):
             if not bounding_box:
                 raise ValueError(f"Element {selector} has no bounding box")
             print(f"Clicking element {selector} with bounding box: {bounding_box}")
-            
+            print("Self size context", self._emunium.browser_inner_window)
+            """ await self._emunium.scroll_to(element) """
             await self._emunium.click_at(element)
             logger.info(f"Clicked element {selector}")
         except Exception as e:

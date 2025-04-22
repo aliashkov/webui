@@ -185,11 +185,11 @@ class CustomController(Controller):
                 logger.debug(f"Element xpath: {element_node.xpath}")
 
                     # Handle new tab if opened
-                """ if len(session.context.pages) > initial_pages:
+                if len(session.context.pages) > initial_pages:
                     new_tab_msg = "New tab opened - switching to it"
                     msg += f" - {new_tab_msg}"
                     logger.info(new_tab_msg)
-                    await browser.switch_to_tab(-1) """
+                    await browser.switch_to_tab(-1)
 
                 return ActionResult(extracted_content=msg, include_in_memory=True)
             except Exception as e:
