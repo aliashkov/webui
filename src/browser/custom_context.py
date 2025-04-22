@@ -204,37 +204,71 @@ class CustomBrowserContext(BrowserContext):
             logger.error(f"Error scrolling up: {str(e)}")
             raise
 
-    async def click_element(self, selector: str, timeout: int = 30000):
-        """Click an element with human-like behavior using emunium."""
-        try:
-            await self._ensure_emunium_initialized()
-            page = await self.get_current_page()
-            if page is None:
-                raise RuntimeError("No current page available")
-            
-            # Wait for page stability
-            await page.evaluate('document.body.style.zoom = 1')
-            
-            element = await page.wait_for_selector(selector, timeout=timeout)
-            if not element:
-                raise ValueError(f"Element with selector {selector} not found")
-            
-            # Ensure element is visible and in viewport
-            if not await element.is_visible():
-                raise ValueError(f"Element {selector} is not visible")
-            await element.scroll_into_view_if_needed()
-            
-            # Get bounding box for debugging
-            bounding_box = await element.bounding_box()
-            if not bounding_box:
-                raise ValueError(f"Element {selector} has no bounding box")
-            print(f"Clicking element {selector} with bounding box: {bounding_box}")
-            
-            await self._emunium.click_at(element)
-            logger.info(f"Clicked element {selector}")
-        except Exception as e:
-            logger.error(f"Error clicking element {selector}: {str(e)}")
-            raise
+    async def click_element(self, selector: str, timeout: int = 30000, retries: int = 3):
+        """Click an element with human-like behavior using emunium, with fallback to Playwright."""
+        for attempt in range(retries):
+            try:
+                await self._ensure_emunium_initialized()
+                page = await self.get_current_page()
+                if page is None:
+                    raise RuntimeError("No current page available")
+
+                # Wait for page stability
+                await page.evaluate('document.body.style.zoom = 1')
+
+                # Wait for the element to be visible
+                element = await page.wait_for_selector(selector, state="visible", timeout=timeout)
+                if not element:
+                    raise ValueError(f"Element with selector {selector} not found")
+
+                # Ensure element is visible and in viewport
+                if not await element.is_visible():
+                    raise ValueError(f"Element {selector} is not visible")
+                await element.scroll_into_view_if_needed()
+
+                # Get bounding box and convert coordinates to integers
+                bounding_box = await element.bounding_box()
+                if not bounding_box:
+                    raise ValueError(f"Element {selector} has no bounding box")
+
+                # Round coordinates to integers
+                bounding_box = {
+                    'x': int(bounding_box['x']),
+                    'y': int(bounding_box['y']),
+                    'width': int(bounding_box['width']),
+                    'height': int(bounding_box['height'])
+                }
+                logger.debug(f"Clicking element {selector} with bounding box: {bounding_box}")
+
+                # Check if element is within viewport
+                viewport_height = page.viewport_size['height']
+                if bounding_box['y'] + bounding_box['height'] > viewport_height:
+                    logger.warning(f"Element at y={bounding_box['y']} exceeds viewport height={viewport_height}")
+                    await page.evaluate(f"window.scrollBy(0, {bounding_box['y'] + bounding_box['height'] - viewport_height + 10});")
+                    bounding_box = await element.bounding_box()  # Recompute after scrolling
+                    logger.debug(f"Adjusted bounding box after scroll: {bounding_box}")
+
+                # Try Emunium click
+                try:
+                    """ await self._emunium.scroll_to(element) """
+                    await self._emunium.click_at(element)
+                    logger.info(f"Clicked element {selector} with Emunium")
+                    return
+                except Exception as emunium_error:
+                    logger.warning(f"Emunium click failed: {str(emunium_error)}. Falling back to Playwright click.")
+
+                    # Fallback to Playwright click
+                    await element.click()
+                    logger.info(f"Clicked element {selector} with Playwright")
+                    return
+
+            except Exception as e:
+                logger.error(f"Attempt {attempt + 1} failed for selector {selector}: {str(e)}")
+                if attempt == retries - 1:
+                    raise
+                await asyncio.sleep(random.uniform(0.5, 1.0))  # Random delay before retry
+
+        raise RuntimeError(f"Failed to click element {selector} after {retries} attempts")
 
     async def type_at_element(self, selector: str, text: str, timeout: int = 30000):
         """Type text into an element with human-like behavior using emunium."""
@@ -243,30 +277,38 @@ class CustomBrowserContext(BrowserContext):
             page = await self.get_current_page()
             if page is None:
                 raise RuntimeError("No current page available")
-            
+
             # Wait for page stability
             await page.evaluate('document.body.style.zoom = 1')
-            
+
             element = await page.wait_for_selector(selector, timeout=timeout)
             if not element:
                 raise ValueError(f"Element with selector {selector} not found")
-            
+
             # Ensure element is visible and in viewport
             if not await element.is_visible():
                 raise ValueError(f"Element {selector} is not visible")
             await element.scroll_into_view_if_needed()
-            
-            # Get bounding box for dynamic positioning
+
+            # Get bounding box and verify coordinates
             bounding_box = await element.bounding_box()
             if not bounding_box:
                 raise ValueError(f"Element {selector} has no bounding box")
             print(f"Typing into element {selector} with bounding box: {bounding_box}")
-            
+
+            # Check if element is within viewport
+            viewport_height = page.viewport_size['height']
+            if bounding_box['y'] + bounding_box['height'] > viewport_height:
+                logger.warning(f"Element at y={bounding_box['y']} exceeds viewport height={viewport_height}")
+                await page.evaluate(f"window.scrollBy(0, {bounding_box['y'] + bounding_box['height'] - viewport_height + 10});")
+                bounding_box = await element.bounding_box()  # Recompute after scrolling
+                logger.debug(f"Adjusted bounding box after scroll: {bounding_box}")
+
             # Calculate center of the element
             x_offset = bounding_box['x'] + bounding_box['width'] / 2
             y_offset = bounding_box['y'] + bounding_box['height'] / 2
-            
-            # Move to the element
+
+            # Move to and type at the element
             await self._emunium.move_to(element)
             await self._emunium.type_at(element, text)
             logger.info(f"Typed '{text}' at element {selector} at ({x_offset}, {y_offset})")
