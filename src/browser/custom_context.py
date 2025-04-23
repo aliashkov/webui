@@ -270,7 +270,7 @@ class CustomBrowserContext(BrowserContext):
 
         raise RuntimeError(f"Failed to click element {selector} after {retries} attempts")
 
-    async def type_at_element(self, selector: str, text: str, timeout: int = 30000, enableEnter: bool = True):
+    async def type_at_element(self, selector: str, text: str, timeout: int = 30000, enableEnter: bool = False):
         """Type text into an element with human-like behavior using emunium."""
         try:
             await self._ensure_emunium_initialized()

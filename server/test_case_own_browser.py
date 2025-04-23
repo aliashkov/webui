@@ -25,22 +25,12 @@ logger = logging.getLogger(__name__)
 
 async def run_browser_job(
     task: str = (
-        "1. Go to google.com. "
-        "2. Move to the search bar, type 'hitz.me', and press Enter. "
-        "3. Click the first search result to visit hitz.me. "
-        "4. Find and click the 'Login' button. "
-        "5. In the login form, enter email 'sagav74082@apklamp.com' and password 'test213', then submit the form. "
-        "6. After successful login, perform the following actions: "
-        "- Navigate to a music or video section and play a song or video. "
-        "- Like a song, video, or post by clicking a 'Like' or heart button. "
-        "- Leave a comment on a song, video, or post, typing 'Great track!' and submitting it. "
-        "- Scroll down the page to load more content, then scroll back up. "
-        "7. Ensure all actions are completed in sequence."
+        "type 'hitz.me,' click search. After that click to Login button  and you need to type this 'sagav74082@apklamp.com test213'.  After succesfully login immetate different actions (watch music, like somewhere, leave comments and etc.). Also don't forget to  scroll "
     ),
     cdp_url: str = "http://localhost:9222",
     window_w: int = 1280,
     window_h: int = 1025,
-    max_steps: int = 10,  # Increased to match webui.py
+    max_steps: int = 2,  # Increased to match webui.py
     max_actions_per_step: int = 3,  # Increased to match webui.py
     use_vision: bool = False,
     enable_emunium: bool = True,
@@ -137,27 +127,8 @@ async def run_browser_job(
             return history.final_result()
 
         except Exception as e:
-            logger.error("Error running browser job: %s\n%s", str(e), traceback.format_exc())
+            print("Error running browser job: %s\n%s", str(e), traceback.format_exc())
             raise
-        finally:
-            # Cleanup (improved to match webui.py and avoid NoneType errors)
-            global_agent = None
-            if not keep_browser_open:
-                try:
-                    if global_browser_context and global_browser_context:  # Check if context is valid
-                        await global_browser_context.close()
-                        logger.info("Browser context closed")
-                    global_browser_context = None
-                except Exception as e:
-                    logger.warning("Failed to close browser context: %s", str(e))
-                
-                try:
-                    if global_browser:  # Check if browser is valid
-                        await global_browser.close()
-                        logger.info("Browser closed")
-                    global_browser = None
-                except Exception as e:
-                    logger.warning("Failed to close browser: %s", str(e))
 
 if __name__ == "__main__":
     asyncio.run(run_browser_job())
