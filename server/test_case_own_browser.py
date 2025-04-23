@@ -30,7 +30,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def close_browser_resources(browser, browser_context):
+async def close_browser_resources(browser: CustomBrowser, browser_context: CustomBrowserContext):
     """Safely close browser and browser context."""
     try:
         if browser_context:
