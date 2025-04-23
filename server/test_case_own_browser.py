@@ -18,6 +18,7 @@ from src.agent.custom_prompts import CustomSystemPrompt, CustomAgentMessagePromp
 from src.browser.custom_context import CustomBrowserContext
 from src.controller.custom_controller import CustomController
 from emunium import EmuniumPlaywright
+import psutil
 
 # Configure logging
 logging.basicConfig(
@@ -30,20 +31,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def terminate_chrome_process(cdp_port=9222):
+    for proc in psutil.process_iter(['name', 'cmdline']):
+        if proc.info['name'] == 'chrome' and f'--remote-debugging-port={cdp_port}' in proc.info['cmdline']:
+            proc.terminate()
+            logger.info(f"Terminated Chrome process with PID {proc.pid}")
+
 async def close_browser_resources(browser: CustomBrowser, browser_context: CustomBrowserContext):
-    """Safely close browser and browser context."""
     try:
         if browser_context:
             await browser_context.close()
             logger.info("Browser context closed successfully.")
     except Exception as e:
         logger.error(f"Error closing browser context: {e}")
-    try:
-        if browser:
-            await browser.close()
-            logger.info("Browser closed successfully.")
-    except Exception as e:
-        logger.error(f"Error closing browser: {e}")
+    finally:
+        try:
+            if browser:
+                await browser.close()
+                logger.info("Browser closed successfully.")
+            else:
+                logger.info("Browser already closed or not initialized.")
+            # Terminate external Chrome process if using CDP
+            terminate_chrome_process(cdp_port=9222)
+        except Exception as e:
+            logger.error(f"Error closing browser: {e}")
 
 async def run_browser_job(
     task: str = (
@@ -189,7 +200,7 @@ async def main_loop():
         try:
             result = await run_browser_job(
                 task=task,
-                max_steps=20,
+                max_steps=2,
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3
