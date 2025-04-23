@@ -11,6 +11,7 @@ import asyncio
 import time
 import platform
 import re
+from browser_use import ActionModel
 from browser_use.agent.prompts import SystemPrompt, AgentMessagePrompt
 from browser_use.agent.service import Agent
 from browser_use.agent.message_manager.utils import convert_input_messages, extract_json_from_model_output, \
@@ -195,7 +196,11 @@ class CustomAgent(Agent):
         self.ActionModel = self.controller.registry.create_action_model()
         # Create output model with the dynamic actions
         self.AgentOutput = CustomAgentOutput.type_with_custom_actions(self.ActionModel)
-
+        
+        
+        
+     	# @observe(name='controller.multi_act')
+	
     def update_step_info(
             self, model_output: CustomAgentOutput, step_info: CustomAgentStepInfo = None
     ):
@@ -282,6 +287,9 @@ class CustomAgent(Agent):
                     print("Emunium:", emunium)
                     print("Index:", index)
                     print("Current Element:", state.selector_map[index])
+                    print("Action:", action)
+                    print("Action dict:", action_dict)
+                    print("Action name:", action_name)
 
                     # Extract the target element from selector_map using the index
                     target_element = state.selector_map[index]
@@ -346,6 +354,7 @@ class CustomAgent(Agent):
                     TIMEOUT_MS = 30000
 
                     id_match = re.search(r'\bid\s*=\s*([\'"])(.*?)\1', element_str, re.IGNORECASE)
+                    aria_match = re.search(r'aria-label\s*=\s*([\'"])(.*?)\1', element_str, re.IGNORECASE)
                     class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
 
                     if id_match:
@@ -355,7 +364,16 @@ class CustomAgent(Agent):
                         print("Element Selector", element_selector)
                         element_selector = f'[id="{element_id}"]'
                         if browserContext:
-                            await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
+                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
+                            
+                    elif aria_match:
+                        element_aria = aria_match.group(2)
+                        print("Extracted aria-label from string:", element_aria)
+                        print("Self browser", browserContext)
+                        print("Element Selector", element_selector)
+                        element_selector = f'[aria-label="{element_aria}"]'
+                        if browserContext:
+                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
 
                     elif class_match:
                         element_id = class_match.group(2)
@@ -364,7 +382,7 @@ class CustomAgent(Agent):
                         print("Element Selector", element_selector)
                         element_selector = f'[class="{element_id}"]'
                         if browserContext:
-                            await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser)
+                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
 
                 if target_identifier and target_identifier != self.last_cursor_selector:
                     # Insert a MoveCursorToElement action before the current action
@@ -399,6 +417,58 @@ class CustomAgent(Agent):
            parsed.action = parsed.action[:self.settings.max_actions_per_step]
         self._log_response(parsed)
         return parsed
+    
+    @time_execution_async('--multi-act (agent)')
+    async def multi_act_custom(
+            self,
+            actions: list[ActionModel],
+            check_for_new_elements: bool = True,
+            browserContext: Optional[CustomBrowserContext] = None, 
+            useOwnBrowser: Optional[bool] = False, 
+            enable_emunium=False,
+        ) -> list[ActionResult]:
+            """Execute multiple actions"""
+            results = []
+            
+            cached_selector_map = await self.browser_context.get_selector_map()
+    
+            cached_path_hashes = set(e.hash.branch_path_hash for e in cached_selector_map.values())
+
+            await self.browser_context.remove_highlights()
+
+            for i, action in enumerate(actions):
+                if action.get_index() is not None and i != 0:
+                    new_state = await self.browser_context.get_state()
+                    new_path_hashes = set(e.hash.branch_path_hash for e in new_state.selector_map.values())
+                    if check_for_new_elements and not new_path_hashes.issubset(cached_path_hashes):
+                        # next action requires index but there are new elements on the page
+                        msg = f'Something new appeared after action {i} / {len(actions)}'
+                        logger.info(msg)
+                        results.append(ActionResult(extracted_content=msg, include_in_memory=True))
+                        break
+
+                await self._raise_if_stopped_or_paused()
+                result = await self.controller.act_custom( # type: ignore
+                    action,
+                    self.browser_context, # type: ignore
+                    self.settings.page_extraction_llm,
+                    self.sensitive_data,
+                    self.settings.available_file_paths,
+                    context=self.context,
+                    enable_emunium=enable_emunium,
+                    browserContextOpt=browserContext
+                )
+
+                results.append(result)
+
+                logger.debug(f'Executed action {i + 1} / {len(actions)}')
+                if results[-1].is_done or results[-1].error or i == len(actions) - 1:
+                    break
+
+                await asyncio.sleep(self.browser_context.config.wait_between_actions)
+                # hash all elements. if it is a subset of cached_state its fine - else break (new elements on page)
+
+            return results   
 
     async def _run_planner(self) -> Optional[str]:
         """Run the planner to analyze state and suggest next steps"""
@@ -508,7 +578,7 @@ class CustomAgent(Agent):
                 self.message_manager._remove_state_message_by_index(-1)
                 raise e
 
-            result: list[ActionResult] = await self.multi_act(model_output.action)
+            result: list[ActionResult] = await self.multi_act_custom(model_output.action, browserContext=browserContext, useOwnBrowser=useOwnBrowser,enable_emunium=enable_emunium,)
             for ret_ in result:
                 if ret_.extracted_content and "Extracted page" in ret_.extracted_content:
                     # record every extracted page
@@ -573,7 +643,7 @@ class CustomAgent(Agent):
 
             # Execute initial actions if provided
             if self.initial_actions:
-                result = await self.multi_act(self.initial_actions, check_for_new_elements=False)
+                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=False)
                 self.state.last_result = result
 
             step_info = CustomAgentStepInfo(
