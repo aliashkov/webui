@@ -6,7 +6,7 @@ from typing import Optional, Dict
 from playwright.async_api import BrowserContext as PlaywrightBrowserContext
 from browser_use.browser.browser import Browser
 from browser_use.browser.context import BrowserContext, BrowserContextConfig
-from emunium import EmuniumPlaywright
+from src.emunium.browsers import EmuniumPlaywright  # Import from your custom emunium folder
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)

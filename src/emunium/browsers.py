@@ -24,6 +24,8 @@ class EmuniumSelenium(EmuniumBase):
             'width': int(rect['width']),
             'height': int(rect['height'])
         }
+        
+        print("Rect", rect)
         return self._get_center(rect, rect)
 
     def move_to(self, element, offset_x=random.uniform(0.0, 1.5), offset_y=random.uniform(0.0, 1.5)):
@@ -39,11 +41,23 @@ class EmuniumSelenium(EmuniumBase):
             self._click([center['x'], center['y']], click_type=click_type)
             self._silent_type(text, characters_per_minute, offset)
 
-    def scroll_to(self, element):
+    async def scroll_to(self, element):
         asyncio.run(self._get_browser_properties_if_not_found())
+        
+        rect = await element.bounding_box()
+        if rect is None:
+            return None
 
-        element_rect = element.rect
-        self._scroll_smoothly_to_element(element_rect)
+        # Convert coordinates to integers
+        rect = {
+            'x': int(rect['x']),
+            'y': int(rect['y']),
+            'width': int(rect['width']),
+            'height': int(rect['height'])
+        }
+        
+        print("Rect 3", rect)
+        self._scroll_smoothly_to_element(rect)
 
 
 class EmuniumPpeteer(EmuniumBase):
@@ -119,6 +133,9 @@ class EmuniumPlaywright(EmuniumBase):
             'width': int(rect['width']),
             'height': int(rect['height'])
         }
+        
+        print("Rect 2", rect)
+        
         return self._get_center(rect, rect)
 
     async def move_to(self, element, offset_x=random.uniform(0.0, 1.5), offset_y=random.uniform(0.0, 1.5)):
@@ -135,10 +152,17 @@ class EmuniumPlaywright(EmuniumBase):
         self._silent_type(text, characters_per_minute, offset)
 
     async def scroll_to(self, element):
-        await self._get_browser_properties_if_not_found()
-
-        element_rect = await element.bounding_box()
-        if element_rect is None:
+        rect = await element.bounding_box()
+        if rect is None:
             return None
 
-        self._scroll_smoothly_to_element(element_rect)
+        # Convert coordinates to integers
+        rect = {
+            'x': int(rect['x']),
+            'y': int(rect['y']),
+            'width': int(rect['width']),
+            'height': int(rect['height'])
+        }
+        
+        print("Rect 3", rect)
+        self._scroll_smoothly_to_element(rect)
