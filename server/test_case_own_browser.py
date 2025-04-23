@@ -20,7 +20,14 @@ from src.controller.custom_controller import CustomController
 from emunium import EmuniumPlaywright
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),  # Log to console
+        logging.FileHandler('browser_job.log', mode='a')  # Log to file for persistence
+    ]
+)
 logger = logging.getLogger(__name__)
 
 async def close_browser_resources(browser, browser_context):
@@ -49,9 +56,9 @@ async def run_browser_job(
     max_actions_per_step: int = 3,
     use_vision: bool = False,
     enable_emunium: bool = True,
-    keep_browser_open: bool = False,  # Changed to False to ensure cleanup
-    max_retries: int = 3,
-    retry_delay: int = 25  # Seconds to wait before retrying
+    keep_browser_open: bool = False,
+    retry_delay: int = 25,  # Seconds to wait before retrying
+    max_attempts_per_task: int = 3  # Maximum attempts for a single task
 ):
     """Run a browser job with retry mechanism and proper cleanup."""
     attempt = 1
@@ -59,8 +66,8 @@ async def run_browser_job(
     global_browser_context = None
     global_agent = None
 
-    while attempt <= max_retries:
-        logger.info(f"Starting attempt {attempt} of {max_retries}")
+    while attempt <= max_attempts_per_task:
+        logger.info(f"Attempt {attempt} of {max_attempts_per_task} for task")
         async with async_playwright() as p:
             try:
                 # Configure LLM
@@ -84,7 +91,7 @@ async def run_browser_job(
                 if chrome_user_data:
                     extra_chromium_args += [f"--user-data-dir={chrome_user_data}"]
 
-                logger.info("Using CDP URL: %s", cdp_url)
+                logger.info(f"Using CDP URL: {cdp_url}")
 
                 browser_config = BrowserConfig(
                     headless=False,
@@ -94,7 +101,7 @@ async def run_browser_job(
                     extra_chromium_args=extra_chromium_args
                 )
                 global_browser = CustomBrowser(config=browser_config)
-                logger.info("CustomBrowser initialized with CDP URL: %s", cdp_url)
+                logger.info(f"CustomBrowser initialized with CDP URL: {cdp_url}")
 
                 # Create browser context
                 global_browser_context = await global_browser.new_context(
@@ -105,13 +112,13 @@ async def run_browser_job(
                         browser_window_size=BrowserContextWindowSize(width=window_w, height=window_h)
                     )
                 )
-                logger.info("Browser Context created: %s", global_browser_context)
+                logger.info(f"Browser Context created: {global_browser_context}")
 
                 # Initialize controller and page
                 controller = CustomController()
                 page = await global_browser_context.get_current_page()
                 emunium = EmuniumPlaywright(page)
-                logger.info("Page initialized: %s", page)
+                logger.info(f"Page initialized: {page}")
 
                 # Create and run agent
                 global_agent = CustomAgent(
@@ -135,19 +142,20 @@ async def run_browser_job(
                     useOwnBrowser=True,
                     enable_emunium=enable_emunium
                 )
-                logger.info("Final Result: %s", history.final_result())
+                logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
                 # Save history
                 history_file = os.path.join("./tmp/agent_history", f"{global_agent.state.agent_id}.json")
                 os.makedirs("./tmp/agent_history", exist_ok=True)
                 global_agent.save_history(history_file)
-                logger.info("Agent history saved to %s", history_file)
+                logger.info(f"Agent history saved to {history_file}")
 
-                return history.final_result()  # Success, return result
+                return history.final_result()  # Return result on success
 
             except Exception as e:
-                logger.error("Error running browser job: %s\n%s", str(e), traceback.format_exc())
-                if attempt < max_retries:
+                error_msg = f"Error on attempt {attempt}: {str(e)}\n{traceback.format_exc()}"
+                logger.error(error_msg)
+                if attempt < max_attempts_per_task:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     await close_browser_resources(global_browser, global_browser_context)
                     global_browser = None
@@ -156,8 +164,8 @@ async def run_browser_job(
                     await asyncio.sleep(retry_delay)
                     attempt += 1
                 else:
-                    logger.error("Max retries reached. Giving up.")
-                    raise
+                    logger.error(f"Max attempts ({max_attempts_per_task}) reached for task. Moving to next task or stopping.")
+                    return None  # Return None to indicate failure
             finally:
                 if not keep_browser_open:
                     await close_browser_resources(global_browser, global_browser_context)
@@ -165,7 +173,42 @@ async def run_browser_job(
                     global_browser_context = None
                     global_agent = None
 
-    return None  # Return None if all retries fail
+    return None  # Return None if all attempts fail
+
+async def main_loop():
+    """Main loop to keep running tasks indefinitely."""
+    task = (
+        "type 'hitz.me,' click search. After that click to Login button and you need to type this 'sagav74082@apklamp.com test213'. After successfully login imitate different actions (watch music, like somewhere, leave comments and etc.). Also don't forget to scroll"
+    )
+    run_count = 0
+    max_runs = None
+
+    while max_runs is None or run_count < max_runs:
+        run_count += 1
+        logger.info(f"Starting run {run_count}")
+        try:
+            result = await run_browser_job(
+                task=task,
+                max_steps=20,
+                max_actions_per_step=3,
+                retry_delay=25,
+                max_attempts_per_task=3
+            )
+            if result:
+                logger.info(f"Run {run_count} completed successfully with result: {result}")
+            else:
+                logger.warning(f"Run {run_count} failed after all attempts.")
+            logger.info(f"Waiting 25 seconds before next run...")
+            await asyncio.sleep(25)
+        except Exception as e:
+            logger.error(f"Unexpected error in run {run_count}: {str(e)}\n{traceback.format_exc()}")
+            logger.info(f"Waiting 25 seconds before retrying...")
+            await asyncio.sleep(25)  # Delay before retrying on unexpected error
 
 if __name__ == "__main__":
-    asyncio.run(run_browser_job())
+    try:
+        asyncio.run(main_loop())
+    except KeyboardInterrupt:
+        logger.info("Program terminated by user.")
+    except Exception as e:
+        logger.error(f"Critical error in main loop: {str(e)}\n{traceback.format_exc()}")
