@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+
 import logging
 import traceback
 from playwright.async_api import async_playwright
@@ -9,7 +10,6 @@ from browser_use.browser.context import BrowserContextConfig, BrowserContextWind
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
-
 
 from src.utils import utils
 from src.agent.custom_agent import CustomAgent
@@ -40,8 +40,8 @@ async def run_browser_job(
     cdp_url: str = "http://localhost:9222",
     window_w: int = 1280,
     window_h: int = 1025,
-    max_steps: int = 10,
-    max_actions_per_step: int = 3,
+    max_steps: int = 10,  # Increased to match webui.py
+    max_actions_per_step: int = 3,  # Increased to match webui.py
     use_vision: bool = False,
     enable_emunium: bool = True,
     keep_browser_open: bool = True
@@ -64,7 +64,7 @@ async def run_browser_job(
         global_agent = None
 
         try:
-            # Initialize browser (directly from webui.py's run_custom_agent)
+            # Initialize browser (from webui.py's run_custom_agent)
             extra_chromium_args = [f"--window-size={window_w},{window_h}"]
             cdp_url = os.getenv("CHROME_CDP", cdp_url)
             chrome_path = os.getenv("CHROME_PATH", None)
@@ -140,17 +140,24 @@ async def run_browser_job(
             logger.error("Error running browser job: %s\n%s", str(e), traceback.format_exc())
             raise
         finally:
-            # Cleanup (exactly as in webui.py's run_custom_agent)
+            # Cleanup (improved to match webui.py and avoid NoneType errors)
             global_agent = None
             if not keep_browser_open:
-                if global_browser_context:
-                    await global_browser_context.close()
-                    logger.info("Browser context closed")
+                try:
+                    if global_browser_context and global_browser_context:  # Check if context is valid
+                        await global_browser_context.close()
+                        logger.info("Browser context closed")
                     global_browser_context = None
-                if global_browser:
-                    await global_browser.close()
-                    logger.info("Browser closed")
+                except Exception as e:
+                    logger.warning("Failed to close browser context: %s", str(e))
+                
+                try:
+                    if global_browser:  # Check if browser is valid
+                        await global_browser.close()
+                        logger.info("Browser closed")
                     global_browser = None
+                except Exception as e:
+                    logger.warning("Failed to close browser: %s", str(e))
 
 if __name__ == "__main__":
     asyncio.run(run_browser_job())
