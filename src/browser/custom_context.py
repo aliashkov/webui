@@ -250,7 +250,7 @@ class CustomBrowserContext(BrowserContext):
 
                 # Try Emunium click
                 try:
-                    """ await self._emunium.scroll_to(element) """
+                    await self._emunium.scroll_to(element)
                     await self._emunium.click_at(element)
                     logger.info(f"Clicked element {selector} with Emunium")
                     return
