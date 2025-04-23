@@ -32,38 +32,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def terminate_chrome_process(cdp_port=9222):
-    """Terminate all chrome.exe processes related to the CDP port or all chrome.exe if necessary."""
+    """Terminate all chrome.exe processes related to the CDP port."""
     terminated_pids = []
     try:
         for proc in psutil.process_iter(['name', 'cmdline', 'pid']):
             try:
-                """ print("Proc", proc) """
                 if proc.info['name'].lower() == 'chrome.exe':
-                    # Check if the process is related to the CDP port
                     cmdline = proc.info.get('cmdline', [])
                     if cmdline and f'--remote-debugging-port={cdp_port}' in cmdline:
                         proc.terminate()
                         terminated_pids.append(proc.info['pid'])
                         logger.info(f"Terminated Chrome process with PID {proc.info['pid']} (CDP-related)")
-                    else:
-                        # Optionally terminate all chrome.exe processes (uncomment if needed)
-                        # proc.terminate()
-                        # terminated_pids.append(proc.info['pid'])
-                        # logger.info(f"Terminated Chrome process with PID {proc.info['pid']} (unrelated)")
-                        pass
             except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
                 logger.warning(f"Could not terminate process {proc.info['pid']}: {e}")
-        
-        time.sleep(1)
-        for pid in terminated_pids:
-            try:
-                if psutil.pid_exists(pid):
-                    proc = psutil.Process(pid)
-                    proc.kill()  # Force kill if still running
-                    logger.info(f"Forced termination of Chrome process with PID {pid}")
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                logger.warning(f"Could not verify or kill process {pid}: {e}")
 
+        time.sleep(1)
         if not terminated_pids:
             logger.info("No Chrome processes found to terminate.")
     except Exception as e:
@@ -86,7 +69,6 @@ async def close_browser_resources(browser: CustomBrowser, browser_context: Custo
         except Exception as e:
             logger.error(f"Error closing browser: {e}")
         finally:
-            # Always terminate chrome.exe processes
             terminate_chrome_process(cdp_port=9222)
 
 async def run_browser_job(
@@ -101,8 +83,8 @@ async def run_browser_job(
     use_vision: bool = False,
     enable_emunium: bool = True,
     keep_browser_open: bool = False,
-    retry_delay: int = 25,  # Seconds to wait before retrying
-    max_attempts_per_task: int = 3  # Maximum attempts for a single task
+    retry_delay: int = 25,
+    max_attempts_per_task: int = 3
 ):
     """Run a browser job with retry mechanism and proper cleanup."""
     attempt = 1
@@ -114,7 +96,11 @@ async def run_browser_job(
         logger.info(f"Attempt {attempt} of {max_attempts_per_task} for task")
         async with async_playwright() as p:
             try:
-                # Configure LLM
+                # Step 1: Ensure Chrome is terminated before starting
+                terminate_chrome_process(cdp_port=9222)
+                await asyncio.sleep(2)  # Wait for Chrome to fully terminate
+
+                # Step 2: Configure LLM
                 llm = utils.get_llm_model(
                     provider="google",
                     model_name="gemini-2.0-flash",
@@ -125,8 +111,17 @@ async def run_browser_job(
                     logger.error("GOOGLE_API_KEY environment variable not set")
                     raise ValueError("GOOGLE_API_KEY environment variable not set")
 
-                # Initialize browser
-                extra_chromium_args = [f"--window-size={window_w},{window_h}"]
+                # Step 3: Initialize browser with additional args to prevent restore prompt
+                extra_chromium_args = [
+                    f"--window-size={window_w},{window_h}",
+                    "--disable-session-crashed-bubble",  # Disables the "Restore pages?" popup
+                    "--no-startup-window",              # Don't reopen windows from last session
+                    "--no-default-browser-check",       # Disable default browser check
+                    "--disable-infobars",               # Disable info bars
+                    "--disable-features=TranslateUI",    # Disable translation UI
+                    "--disable-restore-session-state"    # Disable session restore
+                ]
+                
                 cdp_url = os.getenv("CHROME_CDP", cdp_url)
                 chrome_path = os.getenv("CHROME_PATH", None)
                 if chrome_path == "":
@@ -147,7 +142,7 @@ async def run_browser_job(
                 global_browser = CustomBrowser(config=browser_config)
                 logger.info(f"CustomBrowser initialized with CDP URL: {cdp_url}")
 
-                # Create browser context
+                # Step 4: Create browser context
                 global_browser_context = await global_browser.new_context(
                     config=BrowserContextConfig(
                         trace_path="./tmp/traces" if os.path.exists("./tmp/traces") else None,
@@ -158,13 +153,13 @@ async def run_browser_job(
                 )
                 logger.info(f"Browser Context created: {global_browser_context}")
 
-                # Initialize controller and page
+                # Step 5: Initialize controller and page
                 controller = CustomController()
                 page = await global_browser_context.get_current_page()
                 emunium = EmuniumPlaywright(page)
                 logger.info(f"Page initialized: {page}")
 
-                # Create and run agent
+                # Step 6: Create and run agent
                 global_agent = CustomAgent(
                     task=task,
                     add_infos="",
@@ -188,7 +183,7 @@ async def run_browser_job(
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
-                # Save history
+                # Step 7: Save history
                 history_file = os.path.join("./tmp/agent_history", f"{global_agent.state.agent_id}.json")
                 os.makedirs("./tmp/agent_history", exist_ok=True)
                 global_agent.save_history(history_file)
@@ -222,7 +217,7 @@ async def run_browser_job(
 async def main_loop():
     """Main loop to keep running tasks indefinitely."""
     task = (
-        "type 'hitz.me,' click search. After that click to Login button and you need to type this 'sagav74082@apklamp.com test213'. After successfully login imitate different actions (watch music, like somewhere, leave comments and etc.). Also don't forget to scroll"
+        "go to google.com and type 'hitz.me,' click search. After that click to Login button and you need to type this 'sagav74082@apklamp.com test213'. After successfully login imitate different actions (watch music, like somewhere, leave comments and etc.). Also don't forget to scroll"
     )
     run_count = 0
     max_runs = 3
@@ -233,7 +228,7 @@ async def main_loop():
         try:
             result = await run_browser_job(
                 task=task,
-                max_steps=30,
+                max_steps=8,
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3
