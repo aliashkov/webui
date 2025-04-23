@@ -25,17 +25,49 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout),  # Log to console
-        logging.FileHandler('browser_job.log', mode='a')  # Log to file for persistence
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('browser_job.log', mode='a')
     ]
 )
 logger = logging.getLogger(__name__)
 
 def terminate_chrome_process(cdp_port=9222):
-    for proc in psutil.process_iter(['name', 'cmdline']):
-        if proc.info['name'] == 'chrome' and f'--remote-debugging-port={cdp_port}' in proc.info['cmdline']:
-            proc.terminate()
-            logger.info(f"Terminated Chrome process with PID {proc.pid}")
+    """Terminate all chrome.exe processes related to the CDP port or all chrome.exe if necessary."""
+    terminated_pids = []
+    try:
+        for proc in psutil.process_iter(['name', 'cmdline', 'pid']):
+            try:
+                """ print("Proc", proc) """
+                if proc.info['name'].lower() == 'chrome.exe':
+                    # Check if the process is related to the CDP port
+                    cmdline = proc.info.get('cmdline', [])
+                    if cmdline and f'--remote-debugging-port={cdp_port}' in cmdline:
+                        proc.terminate()
+                        terminated_pids.append(proc.info['pid'])
+                        logger.info(f"Terminated Chrome process with PID {proc.info['pid']} (CDP-related)")
+                    else:
+                        # Optionally terminate all chrome.exe processes (uncomment if needed)
+                        # proc.terminate()
+                        # terminated_pids.append(proc.info['pid'])
+                        # logger.info(f"Terminated Chrome process with PID {proc.info['pid']} (unrelated)")
+                        pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                logger.warning(f"Could not terminate process {proc.info['pid']}: {e}")
+        
+        time.sleep(1)
+        for pid in terminated_pids:
+            try:
+                if psutil.pid_exists(pid):
+                    proc = psutil.Process(pid)
+                    proc.kill()  # Force kill if still running
+                    logger.info(f"Forced termination of Chrome process with PID {pid}")
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                logger.warning(f"Could not verify or kill process {pid}: {e}")
+
+        if not terminated_pids:
+            logger.info("No Chrome processes found to terminate.")
+    except Exception as e:
+        logger.error(f"Error terminating Chrome processes: {e}")
 
 async def close_browser_resources(browser: CustomBrowser, browser_context: CustomBrowserContext):
     try:
@@ -51,10 +83,11 @@ async def close_browser_resources(browser: CustomBrowser, browser_context: Custo
                 logger.info("Browser closed successfully.")
             else:
                 logger.info("Browser already closed or not initialized.")
-            # Terminate external Chrome process if using CDP
-            terminate_chrome_process(cdp_port=9222)
         except Exception as e:
             logger.error(f"Error closing browser: {e}")
+        finally:
+            # Always terminate chrome.exe processes
+            terminate_chrome_process(cdp_port=9222)
 
 async def run_browser_job(
     task: str = (
@@ -192,7 +225,7 @@ async def main_loop():
         "type 'hitz.me,' click search. After that click to Login button and you need to type this 'sagav74082@apklamp.com test213'. After successfully login imitate different actions (watch music, like somewhere, leave comments and etc.). Also don't forget to scroll"
     )
     run_count = 0
-    max_runs = None
+    max_runs = 3
 
     while max_runs is None or run_count < max_runs:
         run_count += 1
@@ -200,7 +233,7 @@ async def main_loop():
         try:
             result = await run_browser_job(
                 task=task,
-                max_steps=2,
+                max_steps=30,
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3
