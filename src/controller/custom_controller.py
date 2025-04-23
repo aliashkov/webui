@@ -10,8 +10,7 @@ from browser_use.utils import time_execution_sync
 from langchain_core.language_models.chat_models import BaseChatModel
 from src.browser.custom_context import CustomBrowserContext
 from browser_use.browser.context import BrowserContext
-from emunium import EmuniumPlaywright
-
+from emunium.browsers import EmuniumPlaywright  # Import from your custom emunium folder
 
 logger = logging.getLogger(__name__)
 
