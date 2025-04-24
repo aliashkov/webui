@@ -60,7 +60,7 @@ class EmuniumBase:
         print(offset_to_screen_y)
         element_x = element_location["x"] + offset_to_screen_x
         """ element_y = element_location["y"] + offset_to_screen_y """
-        element_y = element_location["y"] + offset_to_screen_y + 14
+        element_y = element_location["y"] + 117
         centered_x = element_x + (element_size["width"] // 2)
         centered_y = element_y + (element_size["height"] // 2)
         return {"x": centered_x, "y": centered_y}

@@ -4,6 +4,7 @@ import sys
 import logging
 import traceback
 import time
+import json
 from playwright.async_api import async_playwright
 from browser_use import BrowserConfig
 from browser_use.browser.context import BrowserContextConfig, BrowserContextWindowSize
@@ -30,6 +31,26 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+def load_json_prompt(file_path: str = "prompts/test_prompt.json") -> tuple[str, str]:
+    file_path = os.path.abspath(file_path)
+    if not os.path.exists(file_path):
+        logger.error(f"Prompt file '{file_path}' does not exist")
+        return "", ""
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            prompt = data.get("prompt", "")
+            add_infos = data.get("add_infos", "")
+            if not prompt:
+                logger.error(f"No 'prompt' field found in '{file_path}'")
+                return "", ""
+            logger.info(f"Successfully loaded prompt and add_infos from '{file_path}'")
+            return prompt, add_infos
+    except Exception as e:
+        logger.error(f"Error loading prompt from '{file_path}': {e}")
+        return "", ""
 
 def terminate_chrome_process(cdp_port=9222):
     """Terminate all chrome.exe processes related to the CDP port."""
@@ -72,9 +93,8 @@ async def close_browser_resources(browser: CustomBrowser, browser_context: Custo
             terminate_chrome_process(cdp_port=9222)
 
 async def run_browser_job(
-    task: str = (
-        "type 'hitz.me,' click search. After that click to Login button and you need to type this 'sagav74082@apklamp.com test213'. After successfully login imitate different actions (watch music, like somewhere, leave comments and etc.). Also don't forget to scroll"
-    ),
+    task: str,
+    add_infos: str = "",
     cdp_url: str = "http://localhost:9222",
     window_w: int = 1280,
     window_h: int = 1025,
@@ -216,10 +236,13 @@ async def run_browser_job(
     return None  # Return None if all attempts fail
 
 async def main_loop():
-    """Main loop to keep running tasks indefinitely."""
-    task = (
-        "go to google.com and type 'hitz.me,' click search. After that click to Login button and you need to type this 'sagav74082@apklamp.com test213'. After successfully login imitate different actions (watch music, like somewhere, leave comments and etc.). Also don't forget to scroll"
-    )
+    """Main loop to keep running tasks from a JSON prompt file."""
+    # Load the task from the JSON prompt file
+    task, add_infos = load_json_prompt(file_path="prompts/hitzme_prompt.json")
+    if not task:
+        logger.error("Failed to load task from JSON prompt file. Exiting.")
+        return
+
     run_count = 0
     max_runs = 3
 
@@ -229,11 +252,12 @@ async def main_loop():
         try:
             result = await run_browser_job(
                 task=task,
+                add_infos=add_infos,  # Pass add_infos
                 max_steps=15,
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3
-            ) # type: ignore
+            )
             if result:
                 logger.info(f"Run {run_count} completed successfully with result: {result}")
             else:
