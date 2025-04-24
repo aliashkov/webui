@@ -56,8 +56,11 @@ class EmuniumBase:
 
     def _get_center(self, element_location, element_size):
         offset_to_screen_x, offset_to_screen_y = self.browser_offsets if self.browser_offsets else (0, 0)
+        print(offset_to_screen_x)
+        print(offset_to_screen_y)
         element_x = element_location["x"] + offset_to_screen_x
-        element_y = element_location["y"] + offset_to_screen_y
+        """ element_y = element_location["y"] + offset_to_screen_y """
+        element_y = element_location["y"] + 118
         centered_x = element_x + (element_size["width"] // 2)
         centered_y = element_y + (element_size["height"] // 2)
         return {"x": centered_x, "y": centered_y}

@@ -40,8 +40,8 @@ class CustomBrowserContext(BrowserContext):
                 # Get browser window dimensions
                 window_dimensions = await page.evaluate('''() => {
                     return {
-                        'width': window.outerWidth,
-                        'height': window.outerHeight
+                        'width': window.innerWidth,
+                        'height': window.innerHeight
                     };
                 }''')
                 logger.debug(f"Browser window dimensions: {window_dimensions}")
