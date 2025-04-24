@@ -37,7 +37,6 @@ class BrowserStateHistoryCustom:
 	def to_dict(self) -> dict[str, Any]:
 		data = {}
 		data['screenshot'] = self.screenshot
-		data['interacted_element'] = [el.to_dict() if el else None for el in self.interacted_element]
 		data['url'] = self.url
 		data['title'] = self.title
 		return data
@@ -158,6 +157,5 @@ class AgentHistoryCustom(BaseModel):
 			'model_output': model_output_dump,
 			'result': [r.model_dump(exclude_none=True) for r in self.result],
 			'state': self.state.to_dict(),
-			'metadata': self.metadata.model_dump() if self.metadata else None,
 		}
 
