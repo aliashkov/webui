@@ -53,7 +53,7 @@ from json_repair import repair_json
 from src.utils.agent_state import AgentState
 
 from .custom_message_manager import CustomMessageManager, CustomMessageManagerSettings
-from .custom_views import CustomAgentOutput, CustomAgentStepInfo, CustomAgentState
+from .custom_views import AgentHistoryCustom, CustomAgentOutput, CustomAgentStepInfo, CustomAgentState
 
 from src.controller.custom_controller import CustomController
 
@@ -276,19 +276,25 @@ class CustomAgent(Agent):
         )
 
         # Create metadata with human-readable timestamps
-        adjusted_metadata = StepMetadata(
+        """ adjusted_metadata = StepMetadata(
             step_number=metadata.step_number,
             step_start_time=metadata.step_start_time,  # Keep as float for AgentHistory
             step_end_time=metadata.step_end_time,      # Keep as float for AgentHistory
             input_tokens=metadata.input_tokens
-        )
+        ) """
 
-        history_item = AgentHistory(
+        """ history_item = AgentHistory(
             model_output=model_output,
             result=result,
             state=state_history,
             metadata=adjusted_metadata
-        )
+        ) """
+        
+        history_item = AgentHistoryCustom(
+            model_output=model_output,
+            result=result,
+            state=state_history
+        ) 
 
         self.state.history.history.append(history_item) # type: ignore
 

@@ -5,6 +5,25 @@ from datetime import datetime
 from browser_use.agent.views import AgentOutput, AgentState, ActionResult, AgentHistoryList, MessageManagerState
 from browser_use.controller.registry.views import ActionModel
 from pydantic import BaseModel, ConfigDict, Field, create_model
+from browser_use.browser.views import BrowserStateHistory
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, Type
+
+from langchain_core.language_models.chat_models import BaseChatModel
+from openai import RateLimitError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
+
+from browser_use.agent.message_manager.views import MessageManagerState
+from browser_use.agent.prompts import SystemPrompt
+from browser_use.browser.views import BrowserStateHistory
+from browser_use.controller.registry.views import ActionModel
+from browser_use.dom.history_tree_processor.service import (
+	DOMElementNode,
+	DOMHistoryElement,
+	HistoryTreeProcessor,
+)
+from browser_use.dom.views import SelectorMap
 
 
 @dataclass
@@ -68,3 +87,60 @@ class CustomAgentState(BaseModel):
 
     last_action: Optional[List['ActionModel']] = None
     extracted_content: str = ''
+    
+    
+    
+class StepMetadata(BaseModel):
+	"""Metadata for a single step including timing and token information"""
+
+	step_start_time: float
+	step_end_time: float
+	input_tokens: int  # Approximate tokens from message manager for this step
+	step_number: int
+
+	@property
+	def duration_seconds(self) -> float:
+		"""Calculate step duration in seconds"""
+		return self.step_end_time - self.step_start_time   
+    
+
+class AgentHistoryCustom(BaseModel):
+	"""History item for agent actions"""
+
+	model_output: AgentOutput | None
+	result: list[ActionResult]
+	state: BrowserStateHistory
+	metadata: Optional[StepMetadata] = None
+
+	model_config = ConfigDict(arbitrary_types_allowed=True, protected_namespaces=())
+
+	@staticmethod
+	def get_interacted_element(model_output: AgentOutput, selector_map: SelectorMap) -> list[DOMHistoryElement | None]:
+		elements = []
+		for action in model_output.action:
+			index = action.get_index()
+			if index and index in selector_map:
+				el: DOMElementNode = selector_map[index]
+				elements.append(HistoryTreeProcessor.convert_dom_element_to_history_element(el))
+			else:
+				elements.append(None)
+		return elements
+
+	def model_dump(self, **kwargs) -> Dict[str, Any]:
+		"""Custom serialization handling circular references"""
+
+		# Handle action serialization
+		model_output_dump = None
+		if self.model_output:
+			action_dump = [action.model_dump(exclude_none=True) for action in self.model_output.action]
+			model_output_dump = {
+				'current_state': self.model_output.current_state.model_dump(),
+				'action': action_dump,  # This preserves the actual action data
+			}
+
+		return {
+			'model_output': model_output_dump,
+			'result': [r.model_dump(exclude_none=True) for r in self.result],
+			'state': self.state.to_dict(),
+			'metadata': self.metadata.model_dump() if self.metadata else None,
+		}
