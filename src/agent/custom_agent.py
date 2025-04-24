@@ -251,7 +251,7 @@ class CustomAgent(Agent):
             logger.error(f"Failed to save screenshot: {e}")
             return ""
 
-    def _make_history_item(
+    def _make_history_item_custom(
         self,
         model_output: CustomAgentOutput,
         state: BrowserState,
@@ -788,9 +788,9 @@ class CustomAgent(Agent):
             if not self.injected_browser and self.browser:
                 await self.browser.close()
 
-            """ if self.settings.generate_gif:
+            if self.settings.generate_gif:
                 output_path: str = 'agent_history.gif'
                 if isinstance(self.settings.generate_gif, str):
                     output_path = self.settings.generate_gif
 
-                create_history_gif(task=self.task, history=self.state.history, output_path=output_path) """
+                create_history_gif(task=self.task, history=self.state.history, output_path=output_path)
