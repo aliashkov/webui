@@ -220,7 +220,7 @@ async def main_loop():
         "go to google.com and type 'hitz.me,' click search. After that click to Login button and you need to type this 'sagav74082@apklamp.com test213'. After successfully login imitate different actions (watch music, like somewhere, leave comments and etc.). Also don't forget to scroll"
     )
     run_count = 0
-    max_runs = 3
+    max_runs = 1
 
     while max_runs is None or run_count < max_runs:
         run_count += 1
@@ -228,7 +228,7 @@ async def main_loop():
         try:
             result = await run_browser_job(
                 task=task,
-                max_steps=8,
+                max_steps=2,
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3

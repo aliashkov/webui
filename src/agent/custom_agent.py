@@ -11,6 +11,7 @@ import asyncio
 import time
 import platform
 import re
+from datetime import datetime, timezone
 from browser_use import ActionModel
 from browser_use.agent.prompts import SystemPrompt, AgentMessagePrompt
 from browser_use.agent.service import Agent
@@ -66,6 +67,12 @@ Context = TypeVar('Context')
 from emunium import EmuniumPlaywright
 
 
+def format_timestamp(unix_time: float) -> str:
+    """Convert Unix timestamp to human-readable format (e.g., 2025-04-24 09:00:00) in UTC."""
+    dt = datetime.fromtimestamp(unix_time, tz=timezone.utc)
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
 class CustomAgent(Agent):
     def __init__(
             self,
@@ -117,6 +124,7 @@ class CustomAgent(Agent):
             # Inject state
             injected_agent_state: Optional[AgentState] = None,
             context: Context | None = None,
+            history_fields: Optional[list[str]] = None,
     ):
         if controller is None:
             controller = CustomController()
@@ -154,6 +162,12 @@ class CustomAgent(Agent):
         )
         self.state = injected_agent_state or CustomAgentState()
         self.add_infos = add_infos
+        self.history_fields = history_fields or [
+            "model_output",
+            "result",
+            "state",
+            "metadata"
+        ]
         self._message_manager = CustomMessageManager(
             task=task,
             system_message=self.settings.system_prompt_class(
@@ -196,9 +210,7 @@ class CustomAgent(Agent):
         self.ActionModel = self.controller.registry.create_action_model()
         # Create output model with the dynamic actions
         self.AgentOutput = CustomAgentOutput.type_with_custom_actions(self.ActionModel)
-        
-        
-        
+         
      	# @observe(name='controller.multi_act')
 	
     def update_step_info(
@@ -220,7 +232,74 @@ class CustomAgent(Agent):
             step_info.memory += important_contents + "\n"
 
         logger.info(f"🧠 All Memory: \n{step_info.memory}")
+        
+        
+    def save_screenshot(self, screenshot: str, step_number: int) -> str:
+        screenshot_dir = os.path.join("tmp", "screenshots")
+        os.makedirs(screenshot_dir, exist_ok=True)
+        screenshot_path = os.path.join(screenshot_dir, f"step_{step_number}.png")
 
+        try:
+            # Ensure proper padding
+            screenshot = screenshot.rstrip() + "=" * (4 - len(screenshot) % 4)
+            screenshot_data = base64.b64decode(screenshot)
+            with open(screenshot_path, "wb") as f:
+                f.write(screenshot_data)
+            logger.info(f"Screenshot saved to {screenshot_path}")
+            return screenshot_path
+        except Exception as e:
+            logger.error(f"Failed to save screenshot: {e}")
+            return ""
+
+    def _make_history_item(
+        self,
+        model_output: CustomAgentOutput,
+        state: BrowserState,
+        result: List[ActionResult],
+        metadata: StepMetadata
+    ) -> None:
+        """Create a history item using AgentHistory, preserving interacted_element and tabs."""
+        interacted_elements = AgentHistory.get_interacted_element(model_output, state.selector_map)
+
+        state_history = BrowserStateHistory(
+            url=state.url,
+            title=state.title,
+            tabs=state.tabs,
+            interacted_element=interacted_elements,
+            screenshot=self.save_screenshot(state.screenshot, metadata.step_number) if state.screenshot else ""
+        )
+
+        # Create metadata with human-readable timestamps
+        adjusted_metadata = StepMetadata(
+            step_number=metadata.step_number,
+            step_start_time=metadata.step_start_time,  # Keep as float for AgentHistory
+            step_end_time=metadata.step_end_time,      # Keep as float for AgentHistory
+            input_tokens=metadata.input_tokens
+        )
+
+        history_item = AgentHistory(
+            model_output=model_output,
+            result=result,
+            state=state_history,
+            metadata=adjusted_metadata
+        )
+
+        self.state.history.history.append(history_item)
+
+    THINK_TAGS = re.compile(r'<think>.*?</think>', re.DOTALL)
+
+    def _remove_think_tags(self, text: str) -> str:
+        """Remove think tags from text."""
+        return re.sub(self.THINK_TAGS, '', text)
+
+    def _convert_input_messages(self, input_messages: list[BaseMessage]) -> list[BaseMessage]:
+        """Convert input messages to the correct format."""
+        if self.model_name == 'deepseek-reasoner' or self.model_name.startswith('deepseek-r1'):
+            return convert_input_messages(input_messages, self.model_name)
+        else:
+            return input_messages    
+        
+        
     @time_execution_async("--get_next_action")
     async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium = False) -> AgentOutput:
         """Get next action from LLM and insert cursor movement if targeting a new element."""
@@ -631,19 +710,19 @@ class CustomAgent(Agent):
                     input_tokens=tokens,
                 )
                 self._make_history_item(model_output, state, result, metadata)
-
-    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium=False) -> AgentHistoryList:
-        """Execute the task with maximum number of steps"""
+                
+                
+                
+    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium: bool = False) -> AgentHistoryList:
+        """Execute the task with maximum number of steps."""
         try:
             self._log_agent_run()
 
-            print("Agent" , self)
+            print("Agent", self)
+            print("Browser Context", browserContext)
 
-            print("Browser Context" , browserContext)
-
-            # Execute initial actions if provided
             if self.initial_actions:
-                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=False)
+                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium)
                 self.state.last_result = result
 
             step_info = CustomAgentStepInfo(
@@ -655,22 +734,20 @@ class CustomAgent(Agent):
             )
 
             for step in range(max_steps):
-                # Check if we should stop due to too many failures
                 if self.state.consecutive_failures >= self.settings.max_failures:
                     logger.error(f'❌ Stopping due to {self.settings.max_failures} consecutive failures')
                     break
 
-                # Check control flags before each step
                 if self.state.stopped:
                     logger.info('Agent stopped')
                     break
 
                 while self.state.paused:
-                    await asyncio.sleep(0.2)  # Small delay to prevent CPU spinning
-                    if self.state.stopped:  # Allow stopping while paused
+                    await asyncio.sleep(0.2)
+                    if self.state.stopped:
                         break
 
-                await self.step(step_info, browserContext = browserContext, useOwnBrowser = useOwnBrowser, enable_emunium = enable_emunium)
+                await self.step(step_info, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium)
 
                 if self.state.history.is_done():
                     if self.settings.validate_output and step < max_steps - 1:
@@ -681,10 +758,13 @@ class CustomAgent(Agent):
                     break
             else:
                 logger.info("❌ Failed to complete task in maximum steps")
-                if not self.state.extracted_content:
-                    self.state.history.history[-1].result[-1].extracted_content = step_info.memory
+                if self.state.history.history:
+                    if not self.state.extracted_content:
+                        self.state.history.history[-1].result[-1].extracted_content = step_info.memory
+                    else:
+                        self.state.history.history[-1].result[-1].extracted_content = self.state.extracted_content
                 else:
-                    self.state.history.history[-1].result[-1].extracted_content = self.state.extracted_content
+                    logger.warning("History is empty; cannot set extracted_content")
 
             return self.state.history
 
@@ -708,9 +788,9 @@ class CustomAgent(Agent):
             if not self.injected_browser and self.browser:
                 await self.browser.close()
 
-            if self.settings.generate_gif:
+            """ if self.settings.generate_gif:
                 output_path: str = 'agent_history.gif'
                 if isinstance(self.settings.generate_gif, str):
                     output_path = self.settings.generate_gif
 
-                create_history_gif(task=self.task, history=self.state.history, output_path=output_path)
+                create_history_gif(task=self.task, history=self.state.history, output_path=output_path) """
