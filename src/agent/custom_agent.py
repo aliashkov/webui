@@ -185,6 +185,15 @@ class CustomAgent(Agent):
             state=self.state.message_manager_state,
         )
         self.last_cursor_selector = None
+        base_screenshot_dir = os.path.join("tmp", "screenshots")
+        os.makedirs(base_screenshot_dir, exist_ok=True)
+        run_number = 1
+        while os.path.exists(os.path.join(base_screenshot_dir, f"run_{run_number}")):
+            run_number += 1
+        self.run_number = run_number
+        # Create the run directory upfront
+        self.screenshot_dir = os.path.join(base_screenshot_dir, f"run_{run_number}")
+        os.makedirs(self.screenshot_dir, exist_ok=True)
 
     def _log_response(self, response: CustomAgentOutput) -> None:
         """Log the model's response"""
@@ -235,12 +244,9 @@ class CustomAgent(Agent):
         
         
     def save_screenshot(self, screenshot: str, step_number: int) -> str:
-        screenshot_dir = os.path.join("tmp", "screenshots")
-        os.makedirs(screenshot_dir, exist_ok=True)
-        screenshot_path = os.path.join(screenshot_dir, f"step_{step_number}.png")
-
+        """Save screenshot to the run-specific directory."""
+        screenshot_path = os.path.join(self.screenshot_dir, f"step_{step_number}.png")
         try:
-            # Ensure proper padding
             screenshot = screenshot.rstrip() + "=" * (4 - len(screenshot) % 4)
             screenshot_data = base64.b64decode(screenshot)
             with open(screenshot_path, "wb") as f:

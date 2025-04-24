@@ -229,7 +229,7 @@ async def main_loop():
         try:
             result = await run_browser_job(
                 task=task,
-                max_steps=2,
+                max_steps=9,
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3
