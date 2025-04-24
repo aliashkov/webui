@@ -53,7 +53,7 @@ from json_repair import repair_json
 from src.utils.agent_state import AgentState
 
 from .custom_message_manager import CustomMessageManager, CustomMessageManagerSettings
-from .custom_views import AgentHistoryCustom, CustomAgentOutput, CustomAgentStepInfo, CustomAgentState
+from .custom_views import AgentHistoryCustom, BrowserStateHistoryCustom, CustomAgentOutput, CustomAgentStepInfo, CustomAgentState
 
 from src.controller.custom_controller import CustomController
 
@@ -267,10 +267,9 @@ class CustomAgent(Agent):
         """Create a history item using AgentHistory, preserving interacted_element and tabs."""
         interacted_elements = AgentHistory.get_interacted_element(model_output, state.selector_map)
 
-        state_history = BrowserStateHistory(
+        state_history = BrowserStateHistoryCustom(
             url=state.url,
             title=state.title,
-            tabs=state.tabs,
             interacted_element=interacted_elements,
             screenshot=self.save_screenshot(state.screenshot, metadata.step_number) if state.screenshot else ""
         )
