@@ -179,7 +179,8 @@ async def run_browser_job(
                     max_steps=max_steps,
                     browserContext=global_browser_context,
                     useOwnBrowser=True,
-                    enable_emunium=enable_emunium
+                    enable_emunium=enable_emunium,
+                    customHistory=True
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 

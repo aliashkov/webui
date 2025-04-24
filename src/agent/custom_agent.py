@@ -253,7 +253,7 @@ class CustomAgent(Agent):
 
     def _make_history_item_custom(
         self,
-        model_output: CustomAgentOutput,
+        model_output: AgentOutput,
         state: BrowserState,
         result: List[ActionResult],
         metadata: StepMetadata
@@ -284,7 +284,7 @@ class CustomAgent(Agent):
             metadata=adjusted_metadata
         )
 
-        self.state.history.history.append(history_item)
+        self.state.history.history.append(history_item) # type: ignore
 
     THINK_TAGS = re.compile(r'<think>.*?</think>', re.DOTALL)
 
@@ -606,7 +606,7 @@ class CustomAgent(Agent):
         return plan
 
     @time_execution_async("--step")
-    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[bool] = False, enable_emunium = False) -> None:
+    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[bool] = False, enable_emunium: Optional[bool] = False, customHistory: Optional[bool] = False) -> None:
         """Execute one step of the task"""
         logger.info(f"\n📍 Step {self.state.n_steps}")
         state = None
@@ -709,11 +709,13 @@ class CustomAgent(Agent):
                     step_end_time=step_end_time,
                     input_tokens=tokens,
                 )
-                self._make_history_item(model_output, state, result, metadata)
+                if customHistory:
+                    self._make_history_item_custom(model_output, state, result, metadata)
+                else:
+                    self._make_history_item(model_output, state, result, metadata)
                 
                 
-                
-    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium: bool = False) -> AgentHistoryList:
+    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium: bool = False, customHistory: Optional[bool] = False) -> AgentHistoryList:
         """Execute the task with maximum number of steps."""
         try:
             self._log_agent_run()
@@ -747,7 +749,7 @@ class CustomAgent(Agent):
                     if self.state.stopped:
                         break
 
-                await self.step(step_info, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium)
+                await self.step(step_info, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium, customHistory=customHistory)
 
                 if self.state.history.is_done():
                     if self.settings.validate_output and step < max_steps - 1:
@@ -788,7 +790,7 @@ class CustomAgent(Agent):
             if not self.injected_browser and self.browser:
                 await self.browser.close()
 
-            if self.settings.generate_gif:
+            if self.settings.generate_gif and (not customHistory):
                 output_path: str = 'agent_history.gif'
                 if isinstance(self.settings.generate_gif, str):
                     output_path = self.settings.generate_gif
