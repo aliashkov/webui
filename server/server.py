@@ -238,7 +238,7 @@ async def run_browser_job(
 async def main_loop():
     """Main loop to keep running tasks from a JSON prompt file."""
     # Load the task from the JSON prompt file
-    task, add_infos = load_json_prompt(file_path="prompts/hitzme_prompt.json")
+    task, add_infos = load_json_prompt(file_path="prompts/facebook_collection_prompt.json")
     if not task:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
@@ -253,7 +253,7 @@ async def main_loop():
             result = await run_browser_job(
                 task=task,
                 add_infos=add_infos,  # Pass add_infos
-                max_steps=15,
+                max_steps=40,
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3

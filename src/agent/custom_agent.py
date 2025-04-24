@@ -265,12 +265,11 @@ class CustomAgent(Agent):
         metadata: StepMetadata
     ) -> None:
         """Create a history item using AgentHistory, preserving interacted_element and tabs."""
-        interacted_elements = AgentHistory.get_interacted_element(model_output, state.selector_map)
+        """ interacted_elements = AgentHistory.get_interacted_element(model_output, state.selector_map) """
 
         state_history = BrowserStateHistoryCustom(
             url=state.url,
             title=state.title,
-            interacted_element=interacted_elements,
             screenshot=self.save_screenshot(state.screenshot, metadata.step_number) if state.screenshot else ""
         )
 

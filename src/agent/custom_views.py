@@ -31,7 +31,6 @@ from browser_use.dom.views import SelectorMap
 class BrowserStateHistoryCustom:
 	url: str
 	title: str
-	interacted_element: list[DOMHistoryElement | None] | list[None]
 	screenshot: Optional[str] = None
 
 	def to_dict(self) -> dict[str, Any]:
