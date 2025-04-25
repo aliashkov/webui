@@ -190,11 +190,7 @@ async def run_browser_job(
                     generate_gif=True
                 )
                 history = await global_agent.run(
-                    max_steps=max_steps,
-                    browserContext=global_browser_context,
-                    useOwnBrowser=True,
-                    enable_emunium=False,
-                    customHistory=False
+                    max_steps=max_steps
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
@@ -238,15 +234,15 @@ async def main_loop():
         return
 
     run_count = 0
-    max_runs = 3
+    max_runs = 20
 
     while max_runs is None or run_count < max_runs:
         run_count += 1
         logger.info(f"Starting run {run_count}")
         try:
             result = await run_browser_job(
-                task=task,
-                add_infos=add_infos,  # Pass add_infos
+                task=f"Click to {run_count} page" + task,
+                add_infos= add_infos,  # Pass add_infos
                 max_steps=200,
                 max_actions_per_step=3,
                 retry_delay=25,
