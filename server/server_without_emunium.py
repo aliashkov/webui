@@ -5,9 +5,11 @@ import logging
 import traceback
 import time
 import json
+import random  # Added for randomization
 from playwright.async_api import async_playwright
 from browser_use import BrowserConfig
 from browser_use.browser.context import BrowserContextConfig, BrowserContextWindowSize
+from dotenv import load_dotenv  # Added for environment variable loading
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
@@ -20,6 +22,9 @@ from src.browser.custom_context import CustomBrowserContext
 from src.controller.custom_controller import CustomController
 from emunium import EmuniumPlaywright
 import psutil
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -107,7 +112,7 @@ async def run_browser_job(
     max_attempts_per_task: int = 3,
     run_count: int = 1
 ):
-    """Run a browser job with retry mechanism and proper cleanup."""
+    """Run a browser job with retry mechanism, proxies, and stealth techniques."""
     attempt = 1
     global_browser = None
     global_browser_context = None
@@ -119,16 +124,15 @@ async def run_browser_job(
             try:
                 # Step 1: Ensure Chrome is terminated before starting
                 terminate_chrome_process(cdp_port=9222)
-                await asyncio.sleep(2)  # Wait for Chrome to fully terminate
+                await asyncio.sleep(2)
 
-                # Step 2: Configure LLM with cycling API keys based on run_count
+                # Step 2: Configure LLM with cycling API keys
                 key_index = run_count % 3
                 api_key_name = f"GOOGLE_API_KEY{'' if key_index == 1 else key_index if key_index == 2 else '3'}"
                 api_key = os.getenv(api_key_name, "")
                 if not api_key:
                     logger.error(f"{api_key_name} environment variable not set")
                     raise ValueError(f"{api_key_name} environment variable not set")
-
                 llm = utils.get_llm_model(
                     provider="google",
                     model_name="gemini-2.0-flash",
@@ -137,11 +141,24 @@ async def run_browser_job(
                 )
                 logger.info(f"Using {api_key_name} for run {run_count}")
 
-                # Step 3: Initialize browser with additional args to prevent restore prompt
+                # Step 3: Initialize browser with proxy and stealth
+                # Randomize window size
+                window_w = random.randint(1200, 1400)
+                window_h = random.randint(900, 1100)
                 extra_chromium_args = [
-                    f"--window-size={window_w},{window_h}"
+                    f"--window-size={window_w},{window_h}",
                 ]
-                
+
+                # Load proxy settings from environment
+                proxy = {
+                    "server": os.getenv("PROXY_SERVER", ""),
+                    "username": os.getenv("PROXY_USERNAME", ""),
+                    "password": os.getenv("PROXY_PASSWORD", "")
+                }
+                if not proxy["server"]:
+                    logger.warning("No proxy server specified in PROXY_SERVER. Running without proxy.")
+                    proxy = None  # Disable proxy if not set
+
                 cdp_url = os.getenv("CHROME_CDP", cdp_url)
                 chrome_path = os.getenv("CHROME_PATH", None)
                 if chrome_path == "":
@@ -150,19 +167,19 @@ async def run_browser_job(
                 if chrome_user_data:
                     extra_chromium_args += [f"--user-data-dir={chrome_user_data}"]
 
-                logger.info(f"Using CDP URL: {cdp_url}")
 
                 browser_config = BrowserConfig(
                     headless=False,
                     disable_security=True,
                     cdp_url=cdp_url,
                     chrome_instance_path=chrome_path,
-                    extra_chromium_args=extra_chromium_args
+                    extra_chromium_args=extra_chromium_args,
+                    proxy=proxy  # Add proxy to config
                 )
                 global_browser = CustomBrowser(config=browser_config)
                 logger.info(f"CustomBrowser initialized with CDP URL: {cdp_url}")
 
-                # Step 4: Create browser context
+                # Step 4: Create browser context with stealth script
                 global_browser_context = await global_browser.new_context(
                     config=BrowserContextConfig(
                         trace_path="./tmp/traces" if os.path.exists("./tmp/traces") else None,
@@ -179,10 +196,15 @@ async def run_browser_job(
                 emunium = EmuniumPlaywright(page)
                 logger.info(f"Page initialized: {page}")
 
+                # Simulate human-like behavior
+                await page.mouse.move(random.randint(100, 500), random.randint(100, 500))
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
+                await asyncio.sleep(random.uniform(1, 3))  # Random delay
+
                 # Step 6: Create and run agent
                 global_agent = CustomAgent(
                     task=task,
-                    add_infos="",
+                    add_infos=add_infos,  # Use add_infos correctly
                     use_vision=use_vision,
                     llm=llm,
                     browser=global_browser,
@@ -200,7 +222,6 @@ async def run_browser_job(
                     useOwnBrowser=True,
                     enable_emunium=False,
                     customHistory=True
-                    
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
@@ -210,11 +231,18 @@ async def run_browser_job(
                 global_agent.save_history(history_file)
                 logger.info(f"Agent history saved to {history_file}")
 
-                return history.final_result()  # Return result on success
+                return history.final_result()
 
             except Exception as e:
                 error_msg = f"Error on attempt {attempt}: {str(e)}\n{traceback.format_exc()}"
                 logger.error(error_msg)
+                # Capture screenshot for debugging
+                if global_browser_context:
+                    page = await global_browser_context.get_current_page()
+                    if page:
+                        screenshot_path = f"./tmp/screenshot_run_{run_count}_attempt_{attempt}.png"
+                        await page.screenshot(path=screenshot_path)
+                        logger.info(f"Screenshot saved to {screenshot_path}")
                 if attempt < max_attempts_per_task:
                     logger.info(f"Retrying in {retry_delay} seconds...")
                     await close_browser_resources(global_browser, global_browser_context)
@@ -224,8 +252,8 @@ async def run_browser_job(
                     await asyncio.sleep(retry_delay)
                     attempt += 1
                 else:
-                    logger.error(f"Max attempts ({max_attempts_per_task}) reached for task. Moving to next task or stopping.")
-                    return None  # Return None to indicate failure
+                    logger.error(f"Max attempts ({max_attempts_per_task}) reached for task.")
+                    return None
             finally:
                 if not keep_browser_open:
                     await close_browser_resources(global_browser, global_browser_context)
@@ -233,18 +261,17 @@ async def run_browser_job(
                     global_browser_context = None
                     global_agent = None
 
-    return None  # Return None if all attempts fail
+    return None
 
 async def main_loop():
     """Main loop to keep running tasks from a JSON prompt file."""
-    # Load the task from the JSON prompt file
     task, add_infos = load_json_prompt(file_path="prompts/comments/gather_prompt.json")
     if not task:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
 
     run_count = 8
-    max_runs = 20
+    max_runs = 5000
 
     while max_runs is None or run_count < max_runs:
         run_count += 1
@@ -252,13 +279,13 @@ async def main_loop():
         try:
             result = await run_browser_job(
                 task=f"Click to {run_count} page" + task,
-                add_infos=add_infos,  # Pass add_infos
+                add_infos=add_infos,
                 max_steps=200,
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3,
                 run_count=run_count
-            )
+            ) # type: ignore
             if result:
                 logger.info(f"Run {run_count} completed successfully with result: {result}")
             else:
@@ -268,7 +295,7 @@ async def main_loop():
         except Exception as e:
             logger.error(f"Unexpected error in run {run_count}: {str(e)}\n{traceback.format_exc()}")
             logger.info(f"Waiting 25 seconds before retrying...")
-            await asyncio.sleep(25)  # Delay before retrying on unexpected error
+            await asyncio.sleep(25)
 
 if __name__ == "__main__":
     try:
@@ -277,4 +304,3 @@ if __name__ == "__main__":
         logger.info("Program terminated by user.")
     except Exception as e:
         logger.error(f"Critical error in main loop: {str(e)}\n{traceback.format_exc()}")
-        
