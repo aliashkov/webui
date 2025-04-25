@@ -133,13 +133,7 @@ async def run_browser_job(
 
                 # Step 3: Initialize browser with additional args to prevent restore prompt
                 extra_chromium_args = [
-                    f"--window-size={window_w},{window_h}",
-                    "--disable-session-crashed-bubble",  # Disables the "Restore pages?" popup
-                    "--no-startup-window",              # Don't reopen windows from last session
-                    "--no-default-browser-check",       # Disable default browser check
-                    "--disable-infobars",               # Disable info bars
-                    "--disable-features=TranslateUI",    # Disable translation UI
-                    "--disable-restore-session-state"    # Disable session restore
+                    f"--window-size={window_w},{window_h}"
                 ]
                 
                 cdp_url = os.getenv("CHROME_CDP", cdp_url)
@@ -200,7 +194,7 @@ async def run_browser_job(
                     browserContext=global_browser_context,
                     useOwnBrowser=True,
                     enable_emunium=False,
-                    customHistory=True
+                    customHistory=False
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
