@@ -104,7 +104,8 @@ async def run_browser_job(
     enable_emunium: bool = True,
     keep_browser_open: bool = False,
     retry_delay: int = 25,
-    max_attempts_per_task: int = 3
+    max_attempts_per_task: int = 3,
+    run_count: int = 1  # New parameter to track run count
 ):
     """Run a browser job with retry mechanism and proper cleanup."""
     attempt = 1
@@ -120,16 +121,19 @@ async def run_browser_job(
                 terminate_chrome_process(cdp_port=9222)
                 await asyncio.sleep(2)  # Wait for Chrome to fully terminate
 
-                # Step 2: Configure LLM
+                # Step 2: Configure LLM with alternating API keys based on run_count
+                api_key = os.getenv("GOOGLE_API_KEY" if run_count % 2 != 0 else "GOOGLE_API_KEY2", "")
+                if not api_key:
+                    logger.error(f"{'GOOGLE_API_KEY' if run_count % 2 != 0 else 'GOOGLE_API_KEY2'} environment variable not set")
+                    raise ValueError(f"{'GOOGLE_API_KEY' if run_count % 2 != 0 else 'GOOGLE_API_KEY2'} environment variable not set")
+
                 llm = utils.get_llm_model(
                     provider="google",
                     model_name="gemini-2.0-flash",
                     temperature=0.6,
-                    api_key=os.getenv("GOOGLE_API_KEY", "")
+                    api_key=api_key
                 )
-                if not os.getenv("GOOGLE_API_KEY"):
-                    logger.error("GOOGLE_API_KEY environment variable not set")
-                    raise ValueError("GOOGLE_API_KEY environment variable not set")
+                logger.info(f"Using {'GOOGLE_API_KEY' if run_count % 2 != 0 else 'GOOGLE_API_KEY2'} for run {run_count}")
 
                 # Step 3: Initialize browser with additional args to prevent restore prompt
                 extra_chromium_args = [
@@ -190,7 +194,11 @@ async def run_browser_job(
                     generate_gif=True
                 )
                 history = await global_agent.run(
-                    max_steps=max_steps
+                    max_steps=max_steps,
+                    useOwnBrowser=True,
+                    enable_emunium=False,
+                    customHistory=True
+                    
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
@@ -242,11 +250,12 @@ async def main_loop():
         try:
             result = await run_browser_job(
                 task=f"Click to {run_count} page" + task,
-                add_infos= add_infos,  # Pass add_infos
+                add_infos=add_infos,  # Pass add_infos
                 max_steps=200,
                 max_actions_per_step=3,
                 retry_delay=25,
-                max_attempts_per_task=3
+                max_attempts_per_task=3,
+                run_count=run_count  # Pass run_count to run_browser_job
             )
             if result:
                 logger.info(f"Run {run_count} completed successfully with result: {result}")
