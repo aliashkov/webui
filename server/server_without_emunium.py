@@ -241,8 +241,8 @@ async def main_loop():
         logger.info(f"Starting run {run_count}")
         try:
             result = await run_browser_job(
-                task=task,
-                add_infos=add_infos,  # Pass add_infos
+                task="Click to second page" + task,
+                add_infos= add_infos,  # Pass add_infos
                 max_steps=200,
                 max_actions_per_step=3,
                 retry_delay=25,

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Type
 import uuid
 
@@ -52,7 +53,10 @@ class CustomAgentOutput(AgentOutput):
 
 
 class CustomAgentState(BaseModel):
-    agent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    agent_id: str = Field(
+        default_factory=lambda: datetime.now().strftime("%d%m%Y%H%M%S"),
+        description="Agent ID formatted as DDMMYYYYHHMMSS"
+    )
     n_steps: int = 1
     consecutive_failures: int = 0
     last_result: Optional[List['ActionResult']] = None
