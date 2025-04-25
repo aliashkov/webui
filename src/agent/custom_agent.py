@@ -312,16 +312,10 @@ class CustomAgent(Agent):
         
     @time_execution_async("--get_next_action")
     async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium = False) -> AgentOutput:
-        """Get next action from LLM and insert cursor movement if targeting a new element."""
+        """Get next action from LLM based on current state"""
         fixed_input_messages = self._convert_input_messages(input_messages)
-        """ print("Message", fixed_input_messages) """
         ai_message = self.llm.invoke(fixed_input_messages)
-
         self.message_manager._add_message_with_tokens(ai_message)
-        
-        
-        print("Enable Emunium", enable_emunium)
-
 
         if hasattr(ai_message, "reasoning_content"):
             logger.info("🤯 Start Deep Thinking: ")
@@ -339,6 +333,7 @@ class CustomAgent(Agent):
             parsed_json = json.loads(ai_content)
             parsed: AgentOutput = self.AgentOutput(**parsed_json)
         except Exception as e:
+            import traceback
             traceback.print_exc()
             logger.debug(ai_message.content)
             raise ValueError('Could not parse response.')
@@ -347,163 +342,9 @@ class CustomAgent(Agent):
             logger.debug(ai_message.content)
             raise ValueError('Could not parse response.')
 
-        # Check for actions targeting elements and insert cursor movement if needed
-        updated_actions = []
-        if enable_emunium:
-            for action in parsed.action:
-                action_dict = action.model_dump(exclude_unset=True)
-
-                # Extract selector and index, handling nested structures
-                selector = None
-                index = None
-                action_name = next(iter(action_dict)) if action_dict else None
-                if action_name and isinstance(action_dict.get(action_name), dict):
-                    nested_dict = action_dict[action_name]
-                    selector = nested_dict.get("selector")
-                    index = nested_dict.get("index")
-
-                target_identifier = None
-                state = await self.browser_context.get_state()
-
-                # Determine the target identifier (selector or index-based)
-                if selector:
-                    target_identifier = selector
-                elif index is not None:
-                    emunium = EmuniumPlaywright(self.browser_context)
-                    page = await self.browser_context.get_current_page()
-
-                    print("Page:", page)
-                    print("Emunium:", emunium)
-                    print("Index:", index)
-                    print("Current Element:", state.selector_map[index])
-                    print("Action:", action)
-                    print("Action dict:", action_dict)
-                    print("Action name:", action_name)
-
-                    # Extract the target element from selector_map using the index
-                    target_element = state.selector_map[index]
-
-                    # Initialize selector
-                    element_selector = None
-
-                    # Check if target_element is a DOMElementNode
-                    if str(type(target_element).__name__) == 'DOMElementNode':
-                        print("Target element is a DOMElementNode.")
-
-                        # Try to access attributes from DOMElementNode
-                        try:
-                            element_id = target_element.get_attribute('id') if hasattr(target_element, 'get_attribute') else None
-                            if element_id:
-                                print("Extracted ElementId from DOMElementNode:", element_id)
-                                element_selector = f'#{element_id}'
-                        except Exception as e:
-                            print(f"Failed to get attributes from DOMElementNode: {e}")
-
-                        # Fallback: Use string representation if attributes are inaccessible
-                        if not element_selector:
-                            print("Falling back to string representation of DOMElementNode...")
-                            element_str = str(target_element)
-
-                            # Extract id
-                            id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
-                            if id_match:
-                                element_id = id_match.group(2)
-                                print("Extracted ElementId from string:", element_id)
-                                element_selector = f'#{element_id}'
-
-                            # Extract class
-                            if not element_selector:
-                                class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-                                if class_match:
-                                    class_name = class_match.group(2)
-                                    tag_match = re.search(r'<(\w+)', element_str)
-                                    tag_name = tag_match.group(1).lower() if tag_match else 'button'
-                                    element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
-                                    print("Using class-based selector:", element_selector)
-
-                            # Extract data-ved
-                            if not element_selector:
-                                data_ved_match = re.search(r'data-ved\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-                                if data_ved_match:
-                                    data_ved = data_ved_match.group(2)
-                                    tag_match = re.search(r'<(\w+)', element_str)
-                                    tag_name = tag_match.group(1).lower() if tag_match else 'button'
-                                    element_selector = f'{tag_name}[data-ved="{data_ved}"]'
-                                    print("Using data-ved selector:", element_selector)
-
-                            # No usable attributes found
-                            if not element_selector:
-                                print("No usable attributes found in DOMElementNode string.")
-
-                    # Handle other unexpected types
-
-                    print("Constructed Selector:", element_selector)
-
-                    # Locate the element using the constructed selector
-                    TIMEOUT_MS = 30000
-
-                    id_match = re.search(r'\bid\s*=\s*([\'"])(.*?)\1', element_str, re.IGNORECASE)
-                    aria_match = re.search(r'aria-label\s*=\s*([\'"])(.*?)\1', element_str, re.IGNORECASE)
-                    class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-
-                    if id_match:
-                        element_id = id_match.group(2)
-                        print("Extracted 2 from string:", element_id)
-                        print("Self browser", browserContext)
-                        print("Element Selector", element_selector)
-                        element_selector = f'[id="{element_id}"]'
-                        if browserContext:
-                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
-                            
-                    elif aria_match:
-                        element_aria = aria_match.group(2)
-                        print("Extracted aria-label from string:", element_aria)
-                        print("Self browser", browserContext)
-                        print("Element Selector", element_selector)
-                        element_selector = f'[aria-label="{element_aria}"]'
-                        if browserContext:
-                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
-
-                    elif class_match:
-                        element_id = class_match.group(2)
-                        print("Extracted 3 from string:", element_id)
-                        print("Self browser", browserContext)
-                        print("Element Selector", element_selector)
-                        element_selector = f'[class="{element_id}"]'
-                        if browserContext:
-                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
-
-                if target_identifier and target_identifier != self.last_cursor_selector:
-                    # Insert a MoveCursorToElement action before the current action
-                    move_action = {
-                        "name": "Move cursor to element",
-                        "selector": target_identifier
-                    }
-                    updated_actions.append(self.ActionModel(**move_action))
-                    logger.debug(f"Inserted cursor movement to {target_identifier}")
-                    self.last_cursor_selector = target_identifier
-
-                    # Replace default actions with custom ones where applicable
-                    if action_dict.get("name") == "input_text" and target_identifier:
-                        updated_actions.append(self.ActionModel(
-                            name="Type text at element",
-                            selector=target_identifier,
-                            text=action_dict["input_text"]["text"]
-                        ))
-                    elif action_dict.get("name") == "click_element" and target_identifier:
-                        updated_actions.append(self.ActionModel(
-                            name="Click element with human behavior",
-                            selector=target_identifier
-                        ))
-                else:
-                    updated_actions.append(action)
-        else:
-            # If enable_emunium is False, use the original actions without modification
-            updated_actions = parsed.action
-
-        parsed.action = updated_actions
+        # cut the number of actions to max_actions_per_step if needed
         if len(parsed.action) > self.settings.max_actions_per_step:
-           parsed.action = parsed.action[:self.settings.max_actions_per_step]
+            parsed.action = parsed.action[: self.settings.max_actions_per_step]
         self._log_response(parsed)
         return parsed
     
