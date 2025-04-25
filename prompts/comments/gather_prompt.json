@@ -1,0 +1,6 @@
+{
+    "task_id": "gather_prompt",
+    "description": "Search urls that you can left comments on blogs, forums, news",
+    "prompt": "Go to google.com, use advanced search . You need to find popular portals(blogs, forums, news) that you can left comments(you need to check each url that you can left comments_",
+    "add_infos": "On websites use scroll to find section . If you find left this website and navigate to another one.(or if you finish to scroll bottom also leaving this website). Result give me as lists of urls (also include title). You need to find only 3 websites"
+}
