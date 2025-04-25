@@ -6,7 +6,7 @@ from typing import Optional, Dict
 from playwright.async_api import BrowserContext as PlaywrightBrowserContext
 from browser_use.browser.browser import Browser
 from browser_use.browser.context import BrowserContext, BrowserContextConfig
-from emunium import EmuniumPlaywright
+from src.emunium.browsers import EmuniumPlaywright  # Import from your custom emunium folder
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -40,8 +40,8 @@ class CustomBrowserContext(BrowserContext):
                 # Get browser window dimensions
                 window_dimensions = await page.evaluate('''() => {
                     return {
-                        'width': window.outerWidth,
-                        'height': window.outerHeight
+                        'width': window.innerWidth,
+                        'height': window.innerHeight
                     };
                 }''')
                 logger.debug(f"Browser window dimensions: {window_dimensions}")
@@ -227,7 +227,7 @@ class CustomBrowserContext(BrowserContext):
                 await element.scroll_into_view_if_needed()
 
                 # Get bounding box and convert coordinates to integers
-                bounding_box = await element.bounding_box()
+                """ bounding_box = await element.bounding_box()
                 if not bounding_box:
                     raise ValueError(f"Element {selector} has no bounding box")
 
@@ -246,7 +246,7 @@ class CustomBrowserContext(BrowserContext):
                     logger.warning(f"Element at y={bounding_box['y']} exceeds viewport height={viewport_height}")
                     await page.evaluate(f"window.scrollBy(0, {bounding_box['y'] + bounding_box['height'] - viewport_height + 10});")
                     bounding_box = await element.bounding_box()  # Recompute after scrolling
-                    logger.debug(f"Adjusted bounding box after scroll: {bounding_box}")
+                    logger.debug(f"Adjusted bounding box after scroll: {bounding_box}") """
 
                 # Try Emunium click
                 try:
@@ -270,7 +270,7 @@ class CustomBrowserContext(BrowserContext):
 
         raise RuntimeError(f"Failed to click element {selector} after {retries} attempts")
 
-    async def type_at_element(self, selector: str, text: str, timeout: int = 30000):
+    async def type_at_element(self, selector: str, text: str, timeout: int = 30000, enableEnter: bool = True):
         """Type text into an element with human-like behavior using emunium."""
         try:
             await self._ensure_emunium_initialized()
@@ -311,6 +311,9 @@ class CustomBrowserContext(BrowserContext):
             # Move to and type at the element
             await self._emunium.move_to(element)
             await self._emunium.type_at(element, text)
+            
+            if enableEnter:
+               await self._emunium.type_at(element, '\n')
             logger.info(f"Typed '{text}' at element {selector} at ({x_offset}, {y_offset})")
         except Exception as e:
             logger.error(f"Error typing at element {selector}: {str(e)}")

@@ -1,0 +1,6 @@
+{
+    "task_id": "facebook_prompt",
+    "description": "Search links in facebook",
+    "prompt": "go to google.com and type 'facebook.com' , click search. You need to find music groups ",
+    "add_infos": "You need to find 20 links(names of this groups and urls)"
+}

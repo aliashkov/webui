@@ -7,3 +7,4 @@ langchain-google-genai==2.0.8
 MainContentExtractor==0.0.4
 emunium==2.1.0
 opencv-python
+psutil

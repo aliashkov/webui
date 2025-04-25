@@ -1,0 +1,5 @@
+{
+    "task_id": "google_hitz_login",
+    "description": "Search hitz.me on Google, log in, and perform actions",
+    "prompt": "go to google.com and type 'hitz.me,' click search. After that click to Login button and you need to type this 'sagav74082@apklamp.com test213'. After successfully login imitate different actions (watch music, like somewhere, leave comments and etc.). Also don't forget to scroll"
+}

@@ -735,6 +735,9 @@ theme_map = {
 
 async def close_global_browser():
     global _global_browser, _global_browser_context
+    
+    print("Global browser", _global_browser)
+    print("Global browser context", _global_browser_context)
 
     if _global_browser_context:
         await _global_browser_context.close()
