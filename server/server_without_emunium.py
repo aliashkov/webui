@@ -136,8 +136,16 @@ async def run_browser_job(
                 await asyncio.sleep(2)
 
                 # Step 2: Configure LLM with cycling API keys
-                key_index = run_count % 3
-                api_key_name = f"GOOGLE_API_KEY{'' if key_index == 1 else key_index if key_index == 2 else '3'}"
+                key_index = run_count % 6
+                api_key_map = {
+                    0: "GOOGLE_API_KEY",
+                    1: "GOOGLE_API_KEY2",
+                    2: "GOOGLE_API_KEY3",
+                    3: "GOOGLE_API_KEY4",
+                    4: "GOOGLE_API_KEY5",
+                    5: "GOOGLE_API_KEY6"
+                }
+                api_key_name = api_key_map[key_index]
                 api_key = os.getenv(api_key_name, "")
                 if not api_key:
                     logger.error(f"{api_key_name} environment variable not set")
