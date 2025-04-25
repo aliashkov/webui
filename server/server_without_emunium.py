@@ -105,7 +105,7 @@ async def run_browser_job(
     keep_browser_open: bool = False,
     retry_delay: int = 25,
     max_attempts_per_task: int = 3,
-    run_count: int = 1  # New parameter to track run count
+    run_count: int = 1
 ):
     """Run a browser job with retry mechanism and proper cleanup."""
     attempt = 1
@@ -121,11 +121,13 @@ async def run_browser_job(
                 terminate_chrome_process(cdp_port=9222)
                 await asyncio.sleep(2)  # Wait for Chrome to fully terminate
 
-                # Step 2: Configure LLM with alternating API keys based on run_count
-                api_key = os.getenv("GOOGLE_API_KEY" if run_count % 2 != 0 else "GOOGLE_API_KEY2", "")
+                # Step 2: Configure LLM with cycling API keys based on run_count
+                key_index = run_count % 3
+                api_key_name = f"GOOGLE_API_KEY{'' if key_index == 1 else key_index if key_index == 2 else '3'}"
+                api_key = os.getenv(api_key_name, "")
                 if not api_key:
-                    logger.error(f"{'GOOGLE_API_KEY' if run_count % 2 != 0 else 'GOOGLE_API_KEY2'} environment variable not set")
-                    raise ValueError(f"{'GOOGLE_API_KEY' if run_count % 2 != 0 else 'GOOGLE_API_KEY2'} environment variable not set")
+                    logger.error(f"{api_key_name} environment variable not set")
+                    raise ValueError(f"{api_key_name} environment variable not set")
 
                 llm = utils.get_llm_model(
                     provider="google",
@@ -133,7 +135,7 @@ async def run_browser_job(
                     temperature=0.6,
                     api_key=api_key
                 )
-                logger.info(f"Using {'GOOGLE_API_KEY' if run_count % 2 != 0 else 'GOOGLE_API_KEY2'} for run {run_count}")
+                logger.info(f"Using {api_key_name} for run {run_count}")
 
                 # Step 3: Initialize browser with additional args to prevent restore prompt
                 extra_chromium_args = [
@@ -255,7 +257,7 @@ async def main_loop():
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3,
-                run_count=run_count  # Pass run_count to run_browser_job
+                run_count=run_count
             )
             if result:
                 logger.info(f"Run {run_count} completed successfully with result: {result}")
@@ -275,3 +277,4 @@ if __name__ == "__main__":
         logger.info("Program terminated by user.")
     except Exception as e:
         logger.error(f"Critical error in main loop: {str(e)}\n{traceback.format_exc()}")
+        
