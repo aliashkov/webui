@@ -243,7 +243,7 @@ async def main_loop():
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
 
-    run_count = 0
+    run_count = 8
     max_runs = 20
 
     while max_runs is None or run_count < max_runs:
