@@ -234,14 +234,14 @@ async def main_loop():
         return
 
     run_count = 0
-    max_runs = 3
+    max_runs = 20
 
     while max_runs is None or run_count < max_runs:
         run_count += 1
         logger.info(f"Starting run {run_count}")
         try:
             result = await run_browser_job(
-                task="Click to second page" + task,
+                task=f"Click to {run_count} page" + task,
                 add_infos= add_infos,  # Pass add_infos
                 max_steps=200,
                 max_actions_per_step=3,
