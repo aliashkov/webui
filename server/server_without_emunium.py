@@ -117,6 +117,15 @@ async def run_browser_job(
     global_browser = None
     global_browser_context = None
     global_agent = None
+    
+    PROXY_LIST = [
+        "4.175.200.138:8080",
+        "161.35.70.249:8080",
+        "50.223.246.237:80",
+        # ... (all your other proxies)
+        "83.171.225.234:8085",
+        "185.77.223.113:8085"
+    ]
 
     while attempt <= max_attempts_per_task:
         logger.info(f"Attempt {attempt} of {max_attempts_per_task} for task")
@@ -148,17 +157,17 @@ async def run_browser_job(
                 extra_chromium_args = [
                     f"--window-size={window_w},{window_h}",
                 ]
+                
+                proxy_server = random.choice(PROXY_LIST)
 
                 # Load proxy settings from environment
                 proxy = {
-                    "server": os.getenv("PROXY_SERVER", ""),
-                    "username": os.getenv("PROXY_USERNAME", ""),
-                    "password": os.getenv("PROXY_PASSWORD", "")
+                    "server": f"http://{proxy_server}",
+                    "username": "",  # Add if your proxies require auth
+                    "password": ""   # Add if your proxies require auth
                 }
-                if not proxy["server"]:
-                    logger.warning("No proxy server specified in PROXY_SERVER. Running without proxy.")
-                    proxy = None  # Disable proxy if not set
-
+                logger.info(f"Using proxy: {proxy_server}")
+                
                 cdp_url = os.getenv("CHROME_CDP", cdp_url)
                 chrome_path = os.getenv("CHROME_PATH", None)
                 if chrome_path == "":
