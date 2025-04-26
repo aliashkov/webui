@@ -37,7 +37,7 @@ MAX_STEPS_PER_RUN = 200
 MAX_ACTIONS_PER_STEP = 3
 WAIT_BETWEEN_RUNS_SECONDS = 25
 
-GOOGLE_REGIONS = ['de', 'co.uk', 'com', 'fr', 'es', 'it', 'ca', 'com.au']
+GOOGLE_REGIONS = ['de', 'com', 'fr', 'es', 'it', 'ca', 'com.au', 'nl', 'at', 'fi', 'ge']
 REGION_CYCLE_LENGTH = 300
 PAGE_CYCLE_LENGTH = 50
 
@@ -610,6 +610,12 @@ async def main_loop():
         region_index = (run_count // REGION_CYCLE_LENGTH) % len(GOOGLE_REGIONS)
         current_region_tld = GOOGLE_REGIONS[region_index]
 
+        # Construct the Google domain URL
+        google_domain = f"https://www.google.{current_region_tld}"
+        if current_region_tld == "com":
+            google_domain = "https://www.google.com"  # Handle 'com' case explicitly
+        search_url = f"{google_domain}/search?q=music+forums"
+
         # Construct the task and add_infos for this specific run
         # Prefixing task with dynamic info for clarity to the agent
         current_task = f"[Target Page: {page_number}, Target Region: {current_region_tld}] {prompt}"
@@ -617,12 +623,13 @@ async def main_loop():
         current_add_infos = (
             f"DYNAMIC INSTRUCTIONS FOR THIS RUN:\n"
             f"- Target Google Search Results Page Number: {page_number}\n"
-            f"- Target Google Region TLD: '{current_region_tld}' (use the corresponding Google domain, e.g., google.{current_region_tld})\n"
+            f"- Target Google Region TLD: '{current_region_tld}' (use the Google domain {google_domain})\n"
+            f"- Perform the search using the URL: {search_url}\n"
             f"---\n"
             f"{add_infos}"
         )
 
-        logger.info(f"{current_run_id}: Calculated Page Number: {page_number}, Region: {current_region_tld}")
+        logger.info(f"{current_run_id}: Calculated Page Number: {page_number}, Region: {current_region_tld}, Search URL: {search_url}")
         try:
             result = await run_browser_job(
                 task=current_task,
