@@ -437,7 +437,8 @@ async def run_browser_job(
                     2: "GOOGLE_API_KEY3",
                     3: "GOOGLE_API_KEY4",
                     4: "GOOGLE_API_KEY5",
-                    5: "GOOGLE_API_KEY6"
+                    5: "GOOGLE_API_KEY6",
+                    6: "GOOGLE_API_KEY7"
                 }
                 api_key_name = api_key_map[key_index]
                 api_key = os.getenv(api_key_name, "")
