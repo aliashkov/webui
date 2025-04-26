@@ -577,12 +577,12 @@ async def run_browser_job(
 
 async def main_loop():
     """Main loop to keep running tasks from a JSON prompt file."""
-    task, add_infos = load_json_prompt(file_path="prompts/comments/gather_prompt2.json")
+    task, add_infos = load_json_prompt(file_path="prompts/comments/gather_prompt4.json")
     if not task:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
 
-    run_count = 8
+    run_count = 1
     max_runs = 5000
 
     while max_runs is None or run_count < max_runs:
