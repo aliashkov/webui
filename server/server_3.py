@@ -170,9 +170,7 @@ async def run_browser_job(
                 logger.info(f"Using window size: {current_window_w}x{current_window_h}")
 
                 extra_chromium_args = [
-                    f"--window-size={current_window_w},{current_window_h}",
-                    "--no-first-run",
-                    "--no-default-browser-check",
+                    f"--window-size={current_window_w},{current_window_h}"
                 ]
 
                 # Select a random proxy for this attempt
@@ -373,19 +371,19 @@ async def main_loop():
 
         # Determine region based on run_count
         if 1 <= run_count <= 300:
-            region = "Australia"
+            region = "Germany"
         elif 301 <= run_count <= 600:
-            region = "Austria"
+            region = "England"
         elif 601 <= run_count <= 900:
-            region = "Azerbaijan"
+            region = "Spain"
         elif 901 <= run_count <= 1200:
-            region = "Argentina"
+            region = "Italy"
         elif 1201 <= run_count <= 1500:
-            region = "Armenia"
+            region = "Netherlands"
         elif 1501 <= run_count <= 1800:
             region = "Belgia"
         elif 1801 <= run_count <= 2100:
-            region = "Bulgaria"
+            region = "France"
         else:
             region = "Unknown"
 
