@@ -361,7 +361,7 @@ async def main_loop():
         elif 1801 <= run_count <= 2100:
             region = "Bulgaria"
         else:
-            region = "Unknown"  # Fallback for runs beyond 2100
+            region = "Unknown"
 
         # Append region to add_infos
         region_info = f"Country: {region}"
