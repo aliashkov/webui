@@ -611,7 +611,7 @@ async def run_browser_job(
 async def main_loop():
     """Main loop to keep running tasks from a JSON prompt file."""
     # Use the updated prompt file name if you changed it
-    prompt, base_add_infos = load_json_prompt(file_path="prompts/comments/gather_prompt3.json")
+    prompt, base_add_infos = load_json_prompt(file_path="prompts/comments/gather_prompt_dynamic.json")
     if not prompt:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
@@ -641,7 +641,7 @@ async def main_loop():
         cr_param = params['cr']
 
         # Construct the full Google search URL with region parameters
-        search_url = f"https://www.google.com/search?q=muasic+forums&gl={gl_param}&cr={cr_param}"
+        search_url = f"https://www.google.com/search?q=music+forums&gl={gl_param}&cr={cr_param}"
 
         # Construct the task and add_infos for this specific run
         current_task = prompt # The prompt itself doesn't need dynamic info prefixed anymore
