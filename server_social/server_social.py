@@ -102,7 +102,7 @@ async def run_browser_job(
     task: str,
     add_infos: str = "",
     cdp_url: str = "http://localhost:9222",
-    window_w: int = 1280,
+    window_w: int = 1400,
     window_h: int = 1025,
     max_steps: int = 2,
     max_actions_per_step: int = 3,
@@ -162,7 +162,7 @@ async def run_browser_job(
 
                 # Step 3: Initialize browser with proxy and stealth
                 # Randomize window size
-                window_w = random.randint(1200, 1400)
+                window_w = random.randint(1500, 1700)
                 window_h = random.randint(1225, 1425)
                 extra_chromium_args = [
                     f"--window-size={window_w},{window_h}",
@@ -238,7 +238,7 @@ async def run_browser_job(
                 history = await global_agent.run(
                     max_steps=max_steps,
                     useOwnBrowser=True,
-                    enable_emunium=False,
+                    enable_emunium=True,
                     customHistory=True
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
