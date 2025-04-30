@@ -238,7 +238,7 @@ async def run_browser_job(
                 history = await global_agent.run(
                     max_steps=max_steps,
                     useOwnBrowser=True,
-                    enable_emunium=True,
+                    enable_emunium=False,
                     customHistory=True
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
