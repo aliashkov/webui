@@ -334,7 +334,7 @@ async def run_browser_job(
 
 async def main_loop():
     """Main loop to keep running tasks from a JSON prompt file with region-specific prompts."""
-    task, add_infos = load_json_prompt(file_path="prompts/comments/gather_prompt4.json")
+    task, add_infos = load_json_prompt(file_path="prompts/youtube_prompt.json")
     if not task:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
@@ -346,31 +346,10 @@ async def main_loop():
         run_count += 1
         logger.info(f"Starting run {run_count}")
 
-        # Determine region based on run_count
-        if 1 <= run_count <= 300:
-            region = "Australia"
-        elif 301 <= run_count <= 600:
-            region = "Austria"
-        elif 601 <= run_count <= 900:
-            region = "Azerbaijan"
-        elif 901 <= run_count <= 1200:
-            region = "Argentina"
-        elif 1201 <= run_count <= 1500:
-            region = "Armenia"
-        elif 1501 <= run_count <= 1800:
-            region = "Belgia"
-        elif 1801 <= run_count <= 2100:
-            region = "Bulgaria"
-        else:
-            region = "Unknown"
-
-        # Append region to add_infos
-        region_info = f"Country: {region}"
-        modified_add_infos = f"{add_infos}\n{region_info}" if add_infos else region_info
 
         try:
             result = await run_browser_job(
-                task=f"Click to {run_count} page" + region_info + task,
+                task=task,
                 add_infos=add_infos,
                 max_steps=200,
                 max_actions_per_step=3,
