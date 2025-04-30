@@ -537,11 +537,62 @@ async def run_browser_job(
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
-                # Step 7: Save history
-                history_file = os.path.join("./tmp/agent_history", f"{global_agent.state.agent_id}.json")
-                os.makedirs("./tmp/agent_history", exist_ok=True)
+# Step 7: Determine success status and save history/screenshots
+                success = history.is_successful()  # Check if the task was successful
+                logger.info(f"Task success status: {success}")
+
+                # Define base directories
+                base_history_dir = "./tmp/agent_history"
+                base_screenshot_dir = "./tmp/screenshots"
+                successful_history_dir = "./tmp/agent_history_successful"
+                successful_screenshot_dir = "./tmp/screenshots_successful"
+
+                # Create directories if they don't exist
+                os.makedirs(base_history_dir, exist_ok=True)
+                os.makedirs(base_screenshot_dir, exist_ok=True)
+                if success:
+                    os.makedirs(successful_history_dir, exist_ok=True)
+                    os.makedirs(successful_screenshot_dir, exist_ok=True)
+
+                # Define history file paths
+                history_file = os.path.join(base_history_dir, f"{global_agent.state.agent_id}.json")
+                successful_history_file = os.path.join(successful_history_dir, f"{global_agent.state.agent_id}.json") if success else None
+
+                # Define screenshot directories (use run number from agent)
+                run_screenshot_dir = os.path.join(base_screenshot_dir, f"run_{global_agent.run_number}")
+                successful_run_screenshot_dir = os.path.join(successful_screenshot_dir, f"run_{global_agent.run_number}") if success else None
+                os.makedirs(run_screenshot_dir, exist_ok=True)
+                if success:
+                    os.makedirs(successful_run_screenshot_dir, exist_ok=True)
+
+                # Save history to agent_history
                 global_agent.save_history(history_file)
                 logger.info(f"Agent history saved to {history_file}")
+
+                # If successful, also save history to agent_history_successful
+                if success:
+                    global_agent.save_history(successful_history_file)
+                    logger.info(f"Agent history also saved to {successful_history_file}")
+
+                # Move screenshots to the base screenshots directory
+                original_screenshot_dir = os.path.join("./tmp/screenshots", f"run_{global_agent.run_number}")
+                if os.path.exists(original_screenshot_dir):
+                    for filename in os.listdir(original_screenshot_dir):
+                        src_path = os.path.join(original_screenshot_dir, filename)
+                        dst_path = os.path.join(run_screenshot_dir, filename)
+                        os.rename(src_path, dst_path)  # Move the screenshot
+                        # If successful, also copy to screenshots_successful
+                        if success:
+                            successful_dst_path = os.path.join(successful_run_screenshot_dir, filename)
+                            os.makedirs(os.path.dirname(successful_dst_path), exist_ok=True)
+                            shutil.copy(dst_path, successful_dst_path)  # Use shutil.copy instead of os.copy
+                            logger.info(f"Screenshot copied to {successful_dst_path}")
+                    logger.info(f"Screenshots moved to {run_screenshot_dir}")
+                    # Remove the original directory if empty
+                    try:
+                        os.rmdir(original_screenshot_dir)
+                    except OSError:
+                        pass  # Directory might not be empty or already removed
 
                 return history.final_result()
 
