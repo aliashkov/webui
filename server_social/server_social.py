@@ -111,7 +111,8 @@ async def run_browser_job(
     keep_browser_open: bool = False,
     retry_delay: int = 25,
     max_attempts_per_task: int = 3,
-    run_count: int = 1
+    run_count: int = 1,
+    enableEnter: bool = False
 ):
     """Run a browser job with retry mechanism, proxies, and stealth techniques."""
     attempt = 1
@@ -239,7 +240,8 @@ async def run_browser_job(
                     max_steps=max_steps,
                     useOwnBrowser=True,
                     enable_emunium=True,
-                    customHistory=True
+                    customHistory=True,
+                    
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
@@ -355,7 +357,8 @@ async def main_loop():
                 max_actions_per_step=3,
                 retry_delay=25,
                 max_attempts_per_task=3,
-                run_count=run_count
+                run_count=run_count,
+                enableEnter=False
             )  # type: ignore
             if result:
                 logger.info(f"Run {run_count} completed successfully with result: {result}")

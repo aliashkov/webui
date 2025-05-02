@@ -356,6 +356,7 @@ class CustomAgent(Agent):
             browserContext: Optional[CustomBrowserContext] = None, 
             useOwnBrowser: Optional[bool] = False, 
             enable_emunium=False,
+            enableEnter: Optional[bool] = False,
         ) -> list[ActionResult]:
             """Execute multiple actions"""
             results = []
@@ -386,7 +387,8 @@ class CustomAgent(Agent):
                     self.settings.available_file_paths,
                     context=self.context,
                     enable_emunium=enable_emunium,
-                    browserContextOpt=browserContext
+                    browserContextOpt=browserContext,
+                    enableEnter=enableEnter
                 )
 
                 results.append(result)
@@ -566,7 +568,7 @@ class CustomAgent(Agent):
                     self._make_history_item(model_output, state, result, metadata)
                 
                 
-    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium: bool = False, customHistory: Optional[bool] = False) -> AgentHistoryList:
+    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium: bool = False, customHistory: Optional[bool] = False, enableEnter: Optional[bool] = False) -> AgentHistoryList:
         """Execute the task with maximum number of steps."""
         try:
             self._log_agent_run()
@@ -575,7 +577,7 @@ class CustomAgent(Agent):
             print("Browser Context", browserContext)
 
             if self.initial_actions:
-                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium)
+                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium, enableEnter=enableEnter)
                 self.state.last_result = result
 
             step_info = CustomAgentStepInfo(

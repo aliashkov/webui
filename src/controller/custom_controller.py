@@ -257,6 +257,7 @@ class CustomController(Controller):
         context: Optional[Context] = None,
         enable_emunium=False,  # Add comma here
         browserContextOpt: Optional[CustomBrowserContext] = None,
+        enableEnter: Optional[bool] = False
     ) -> ActionResult:
         """Execute a custom action using the registry."""
         try:
@@ -266,6 +267,7 @@ class CustomController(Controller):
                 """ page = browserContext.move_to_element() # type: ignore
                 print("Page", page.viewport_size) # type: ignore """
             print("Enable emunium", enable_emunium)
+            print("Enable Enter", enableEnter)
             if enable_emunium:
                 self._emunium = enable_emunium
             for action_name, params in action.model_dump(exclude_unset=True).items():
