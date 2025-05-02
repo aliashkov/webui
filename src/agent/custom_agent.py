@@ -361,6 +361,8 @@ class CustomAgent(Agent):
             """Execute multiple actions"""
             results = []
             
+            print("Enable Enter 4", enableEnter)
+            
             cached_selector_map = await self.browser_context.get_selector_map()
     
             cached_path_hashes = set(e.hash.branch_path_hash for e in cached_selector_map.values())
@@ -575,6 +577,7 @@ class CustomAgent(Agent):
 
             print("Agent", self)
             print("Browser Context", browserContext)
+            print("Enable Enter 3 ", enableEnter)
 
             if self.initial_actions:
                 result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium, enableEnter=enableEnter)

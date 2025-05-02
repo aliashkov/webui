@@ -45,7 +45,7 @@
     "add_infos": [
         "- The primary goal is to subscribe to one new channel (with >= 30k subscribers) and post *exactly one* HitzMe comment **without emojis** on one of its videos.",
         "- **Crucially: After successfully posting ONE comment, the task MUST stop and terminate immediately.**",
-        "- Target channels with **at least 50,000 subscribers**.",
+        "- Target channels with **at least 30,000 subscribers**.",
         "- Prioritize finding channels via browsing the main feed/recommendations before resorting to search.",
         "- If using search, use varied terms and avoid getting stuck on one.",
         "- Focus on channels where you can instantly subscribe.",

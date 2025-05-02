@@ -219,6 +219,8 @@ async def run_browser_job(
                 await page.mouse.move(random.randint(100, 500), random.randint(100, 500))
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
                 await asyncio.sleep(random.uniform(1, 3))  # Random delay
+                
+                print("Enable Enter 2", enableEnter)
 
                 # Step 6: Create and run agent
                 global_agent = CustomAgent(
@@ -241,7 +243,7 @@ async def run_browser_job(
                     useOwnBrowser=True,
                     enable_emunium=True,
                     customHistory=True,
-                    
+                    enableEnter=enableEnter
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
@@ -358,7 +360,7 @@ async def main_loop():
                 retry_delay=25,
                 max_attempts_per_task=3,
                 run_count=run_count,
-                enableEnter=False
+                enableEnter=True
             )  # type: ignore
             if result:
                 logger.info(f"Run {run_count} completed successfully with result: {result}")
