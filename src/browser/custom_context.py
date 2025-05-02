@@ -271,50 +271,58 @@ class CustomBrowserContext(BrowserContext):
         raise RuntimeError(f"Failed to click element {selector} after {retries} attempts")
 
     async def type_at_element(self, selector: str, text: str, timeout: int = 30000, enableEnter: bool = True):
-        """Type text into an element with human-like behavior using emunium."""
+        """Type text into an element with human-like behavior using emunium, ensuring the field is cleared first."""
         try:
             await self._ensure_emunium_initialized()
             page = await self.get_current_page()
             if page is None:
                 raise RuntimeError("No current page available")
 
-            # Wait for page stability
+            # Wait for page stability (optional but sometimes helpful)
+            # await page.wait_for_load_state('networkidle') # Consider using this if needed
             await page.evaluate('document.body.style.zoom = 1')
 
-            element = await page.wait_for_selector(selector, timeout=timeout)
+            element = await page.wait_for_selector(selector, timeout=timeout) # Wait for visible
             if not element:
                 raise ValueError(f"Element with selector {selector} not found")
 
             # Ensure element is visible and in viewport
-            if not await element.is_visible():
-                raise ValueError(f"Element {selector} is not visible")
+            # The state="visible" above helps, but scroll_into_view is still good practice
             await element.scroll_into_view_if_needed()
+            await asyncio.sleep(0.2)
 
-            # Get bounding box and verify coordinates
+            logger.debug(f"Clearing input field: {selector}")
+            """ await element.fill("") """
+
+            # Get bounding box (for logging/debugging, not strictly needed for the fix)
             bounding_box = await element.bounding_box()
             if not bounding_box:
-                raise ValueError(f"Element {selector} has no bounding box")
+                # This shouldn't happen if wait_for_selector succeeded, but check just in case
+                 logger.warning(f"Element {selector} has no bounding box after clearing/scrolling.")
+                 # Attempt focus before proceeding
+                 await element.focus()
+                 bounding_box = await element.bounding_box()
+                 if not bounding_box:
+                    raise ValueError(f"Element {selector} still has no bounding box")
             print(f"Typing into element {selector} with bounding box: {bounding_box}")
 
-            # Check if element is within viewport
-            viewport_height = page.viewport_size['height']
-            if bounding_box['y'] + bounding_box['height'] > viewport_height:
-                logger.warning(f"Element at y={bounding_box['y']} exceeds viewport height={viewport_height}")
-                await page.evaluate(f"window.scrollBy(0, {bounding_box['y'] + bounding_box['height'] - viewport_height + 10});")
-                bounding_box = await element.bounding_box()  # Recompute after scrolling
-                logger.debug(f"Adjusted bounding box after scroll: {bounding_box}")
 
-            # Calculate center of the element
-            x_offset = bounding_box['x'] + bounding_box['width'] / 2
-            y_offset = bounding_box['y'] + bounding_box['height'] / 2
+            await element.focus()
+            await self._emunium.move_to(element) # Move mouse over the element
+            await self._emunium.type_at(element, text) # Type the text
 
-            # Move to and type at the element
-            await self._emunium.move_to(element)
-            await self._emunium.type_at(element, text)
+            """ if enableEnter:
+               await self._emunium.type_at(element, '\n') """
+
+            logger.info(f"Typed '{text}' at element {selector}")
             
-            if enableEnter:
-               await self._emunium.type_at(element, '\n')
-            logger.info(f"Typed '{text}' at element {selector} at ({x_offset}, {y_offset})")
         except Exception as e:
-            logger.error(f"Error typing at element {selector}: {str(e)}")
+            # Improve error logging
+            current_url = await page.url() if page else "Unknown URL"
+            logger.error(f"Error typing at element '{selector}' on page '{current_url}': {str(e)}", exc_info=True)
+            # Optionally capture screenshot on error
+            # try:
+            #     if page: await page.screenshot(path="error_screenshot_typing.png")
+            # except Exception as screen_err:
+            #     logger.error(f"Failed to take screenshot on error: {screen_err}")
             raise
