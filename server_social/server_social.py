@@ -334,7 +334,7 @@ async def run_browser_job(
 
 async def main_loop():
     """Main loop to keep running tasks from a JSON prompt file with region-specific prompts."""
-    task, add_infos = load_json_prompt(file_path="prompts/youtube_promotion_prompt.json")
+    task, add_infos = load_json_prompt(file_path="prompts/youtube_promotion_prompt2.json")
     if not task:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
