@@ -311,7 +311,7 @@ class CustomAgent(Agent):
         
         
     @time_execution_async("--get_next_action")
-    async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium = False) -> AgentOutput:
+    async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium: Optional[bool] = False, enableEnter: Optional[bool] = False) -> AgentOutput:
         """Get next action from LLM based on current state"""
         fixed_input_messages = self._convert_input_messages(input_messages)
         ai_message = self.llm.invoke(fixed_input_messages)
@@ -355,8 +355,8 @@ class CustomAgent(Agent):
             check_for_new_elements: bool = True,
             browserContext: Optional[CustomBrowserContext] = None, 
             useOwnBrowser: Optional[bool] = False, 
-            enable_emunium=False,
-            enableEnter: Optional[bool] = False,
+            enable_emunium: Optional[bool] = False, 
+            enableEnter: Optional[bool] = False
         ) -> list[ActionResult]:
             """Execute multiple actions"""
             results = []
@@ -461,7 +461,7 @@ class CustomAgent(Agent):
         return plan
 
     @time_execution_async("--step")
-    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[bool] = False, enable_emunium: Optional[bool] = False, customHistory: Optional[bool] = False) -> None:
+    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[bool] = False, enable_emunium: Optional[bool] = False, customHistory: Optional[bool] = False, enableEnter: Optional[bool] = False) -> None:
         """Execute one step of the task"""
         logger.info(f"\n📍 Step {self.state.n_steps}")
         state = None
@@ -469,6 +469,8 @@ class CustomAgent(Agent):
         result: list[ActionResult] = []
         step_start_time = time.time()
         tokens = 0
+        
+        print("Enable Enter 5", enableEnter)
 
         try:
             state = await self.browser_context.get_state()
@@ -491,7 +493,7 @@ class CustomAgent(Agent):
             """ print("Tokens", tokens) """
 
             try:
-                model_output = await self.get_next_action(input_messages, browserContext = browserContext, useOwnBrowser = useOwnBrowser, enable_emunium = enable_emunium)
+                model_output = await self.get_next_action(input_messages, browserContext = browserContext, useOwnBrowser = useOwnBrowser, enable_emunium = enable_emunium, enableEnter=enableEnter)
                 self.update_step_info(model_output, step_info)
                 self.state.n_steps += 1
 
@@ -512,7 +514,7 @@ class CustomAgent(Agent):
                 self.message_manager._remove_state_message_by_index(-1)
                 raise e
 
-            result: list[ActionResult] = await self.multi_act_custom(model_output.action, browserContext=browserContext, useOwnBrowser=useOwnBrowser,enable_emunium=enable_emunium,)
+            result: list[ActionResult] = await self.multi_act_custom(model_output.action, browserContext=browserContext, useOwnBrowser=useOwnBrowser,enable_emunium=enable_emunium, enableEnter=enableEnter)
             for ret_ in result:
                 if ret_.extracted_content and "Extracted page" in ret_.extracted_content:
                     # record every extracted page
@@ -580,6 +582,7 @@ class CustomAgent(Agent):
             print("Enable Enter 3 ", enableEnter)
 
             if self.initial_actions:
+                print("Enable Enter 33 ", enableEnter)
                 result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium, enableEnter=enableEnter)
                 self.state.last_result = result
 
@@ -605,7 +608,7 @@ class CustomAgent(Agent):
                     if self.state.stopped:
                         break
 
-                await self.step(step_info, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium, customHistory=customHistory)
+                await self.step(step_info, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium, customHistory=customHistory, enableEnter=enableEnter)
 
                 if self.state.history.is_done():
                     if self.settings.validate_output and step < max_steps - 1:
