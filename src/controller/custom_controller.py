@@ -19,6 +19,7 @@ class CustomController(Controller):
         self._emunium = None  # Use protected attribute
         self._emunium_lock = asyncio.Lock()  # Add lock for thread safety
         self.browserContextOpt = None
+        self.enable_enter = False
         super().__init__(exclude_actions=exclude_actions, output_model=output_model)
         self._register_custom_actions()
     def _register_custom_actions(self):
@@ -222,6 +223,7 @@ class CustomController(Controller):
                 element_node = await target_browser.get_dom_element_by_index(params.index)
                 print("Self emunium", self._emunium_lock)
                 print("Emunium", self._emunium)
+                print("Enable Enter Typing", self.enable_enter)
                 
                 css_selector = target_browser._enhanced_css_selector_for_element(
                     element_node, include_dynamic_attributes=True
@@ -233,7 +235,7 @@ class CustomController(Controller):
                 """ await page.wait_for_load_state('networkidle') """
                     
                 if self._emunium:
-                    await target_browser.type_at_element(css_selector, params.text)
+                    await target_browser.type_at_element(css_selector, params.text, 30000, enableEnter=self.enable_enter)
                     msg = f"⌨️ Custom Input into index {params.index}"
                 else:
                     await target_browser._input_text_element_node(element_node, params.text)
@@ -266,8 +268,9 @@ class CustomController(Controller):
                 self.browserContextOpt = browserContextOpt
                 """ page = browserContext.move_to_element() # type: ignore
                 print("Page", page.viewport_size) # type: ignore """
-            print("Enable emunium", enable_emunium)
-            print("Enable Enter", enableEnter)
+            if enableEnter:
+                self.enable_enter = enableEnter
+
             if enable_emunium:
                 self._emunium = enable_emunium
             for action_name, params in action.model_dump(exclude_unset=True).items():

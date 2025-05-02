@@ -360,7 +360,7 @@ async def main_loop():
                 retry_delay=25,
                 max_attempts_per_task=3,
                 run_count=run_count,
-                enableEnter=True
+                enableEnter=False
             )  # type: ignore
             if result:
                 logger.info(f"Run {run_count} completed successfully with result: {result}")
