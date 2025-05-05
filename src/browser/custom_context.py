@@ -308,7 +308,10 @@ class CustomBrowserContext(BrowserContext):
 
 
             await element.focus()
-            await element.press('Delete') # Press Delete key
+            await asyncio.sleep(0.1)
+
+            # Clear the content using JavaScript
+            await element.evaluate('el => { el.textContent = ""; }')
             
             
             await self._emunium.move_to(element) # Move mouse over the element
