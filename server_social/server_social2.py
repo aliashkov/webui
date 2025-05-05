@@ -43,7 +43,7 @@ def load_json_prompt(file_path: str = "prompts/test_prompt.json") -> tuple[str, 
     if not os.path.exists(file_path):
         logger.error(f"Prompt file '{file_path}' does not exist")
         return "", ""
-
+    
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -64,43 +64,22 @@ def terminate_chrome_process(cdp_port=9222):
     try:
         for proc in psutil.process_iter(['name', 'cmdline', 'pid']):
             try:
-                # Added check for proc.info being populated
-                if proc.info and proc.info['name'] and proc.info['name'].lower() == 'chrome.exe':
+                if proc.info['name'].lower() == 'chrome.exe':
                     cmdline = proc.info.get('cmdline', [])
                     if cmdline and f'--remote-debugging-port={cdp_port}' in cmdline:
                         proc.terminate()
                         terminated_pids.append(proc.info['pid'])
                         logger.info(f"Terminated Chrome process with PID {proc.info['pid']} (CDP-related)")
             except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                # Check if proc.info exists before accessing pid
-                pid_info = f"PID {proc.info['pid']}" if proc.info and 'pid' in proc.info else "unknown PID"
-                logger.warning(f"Could not terminate process {pid_info}: {e}")
-            except Exception as e: # Catch other potential errors during iteration
-                 pid_info = f"PID {proc.info['pid']}" if proc.info and 'pid' in proc.info else "unknown PID"
-                 logger.error(f"Error processing process {pid_info}: {e}")
+                logger.warning(f"Could not terminate process {proc.info['pid']}: {e}")
 
-
-        time.sleep(1) # Give processes time to terminate
-        # Verify termination (optional but recommended)
-        for pid in terminated_pids:
-             if psutil.pid_exists(pid):
-                 try:
-                     proc = psutil.Process(pid)
-                     proc.kill() # Force kill if terminate didn't work
-                     logger.warning(f"Force killed lingering Chrome process with PID {pid}")
-                 except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                     logger.info(f"Process {pid} terminated successfully or already gone: {e}")
-                 except Exception as e:
-                     logger.error(f"Error force killing process {pid}: {e}")
-
+        time.sleep(1)
         if not terminated_pids:
-            logger.info("No relevant Chrome processes found to terminate.")
+            logger.info("No Chrome processes found to terminate.")
     except Exception as e:
         logger.error(f"Error terminating Chrome processes: {e}")
 
-
-async def close_browser_resources(browser: CustomBrowser | None, browser_context: CustomBrowserContext | None):
-    # Ensure browser and context types are correct or handle potential None
+async def close_browser_resources(browser: CustomBrowser, browser_context: CustomBrowserContext):
     try:
         if browser_context:
             await browser_context.close()
@@ -117,9 +96,7 @@ async def close_browser_resources(browser: CustomBrowser | None, browser_context
         except Exception as e:
             logger.error(f"Error closing browser: {e}")
         finally:
-            # Ensure Chrome processes are terminated even if browser close fails
             terminate_chrome_process(cdp_port=9222)
-
 
 async def run_browser_job(
     task: str,
@@ -141,131 +118,114 @@ async def run_browser_job(
     attempt = 1
     global_browser = None
     global_browser_context = None
-    global_agent = None # Initialize agent to None
-
-    # Define Proxy List (Consider moving to config or env vars)
-    PROXY_LIST = os.getenv("PROXY_LIST", "37.235.23.217:8080,43.153.69.25:13001,43.153.7.172:13001,47.91.29.151:8080,4.175.200.138:8080,8.212.165.164:10801").split(',')
-    if not PROXY_LIST or PROXY_LIST == ['']:
-        logger.warning("PROXY_LIST environment variable not set or empty. Running without proxies.")
-        PROXY_LIST = None
-
+    global_agent = None
+    
+    PROXY_LIST = [
+        "37.235.23.217:8080",
+        "43.153.69.25:13001",
+        "43.153.7.172:13001",
+        "47.91.29.151:8080",
+        "4.175.200.138:8080",
+        "8.212.165.164:10801"
+    ]
 
     while attempt <= max_attempts_per_task:
-        logger.info(f"Attempt {attempt} of {max_attempts_per_task} for task (Run {run_count})")
-        async with async_playwright() as p: # Playwright context manager ensures cleanup
+        logger.info(f"Attempt {attempt} of {max_attempts_per_task} for task")
+        async with async_playwright() as p:
             try:
                 # Step 1: Ensure Chrome is terminated before starting
-                logger.info("Terminating existing Chrome processes...")
                 terminate_chrome_process(cdp_port=9222)
-                await asyncio.sleep(2) # Short delay to ensure termination completes
+                await asyncio.sleep(2)
 
                 # Step 2: Configure LLM with cycling API keys
-                # Ensure keys are loaded
-                google_api_keys = [os.getenv(f"GOOGLE_API_KEY{i}") for i in range(1, 8)] # Assuming keys are named KEY, KEY2, ... KEY7
-                google_api_keys = [key for key in google_api_keys if key] # Filter out None/empty keys
-
-                if not google_api_keys:
-                    logger.error("No GOOGLE_API_KEY environment variables found (expected GOOGLE_API_KEY, GOOGLE_API_KEY2, etc.).")
-                    raise ValueError("No Google API keys configured.")
-
-                key_index = (run_count - 1) % len(google_api_keys) # Use run_count (1-based) and modulo length
-                api_key = google_api_keys[key_index]
-                api_key_name = f"GOOGLE_API_KEY{key_index + 1 if key_index > 0 else ''}" # Construct name for logging
-
-                logger.info(f"Using {api_key_name} for run {run_count}")
-
+                key_index = run_count % 6
+                api_key_map = {
+                    0: "GOOGLE_API_KEY",
+                    1: "GOOGLE_API_KEY2",
+                    2: "GOOGLE_API_KEY3",
+                    3: "GOOGLE_API_KEY4",
+                    4: "GOOGLE_API_KEY5",
+                    5: "GOOGLE_API_KEY6",
+                    6: "GOOGLE_API_KEY7"
+                }
+                api_key_name = api_key_map[key_index]
+                api_key = os.getenv(api_key_name, "")
+                if not api_key:
+                    logger.error(f"{api_key_name} environment variable not set")
+                    raise ValueError(f"{api_key_name} environment variable not set")
                 llm = utils.get_llm_model(
                     provider="google",
-                    model_name="gemini-1.5-flash", # Consider making model configurable
+                    model_name="gemini-2.0-flash",
                     temperature=0.6,
                     api_key=api_key
                 )
-
+                logger.info(f"Using {api_key_name} for run {run_count}")
 
                 # Step 3: Initialize browser with proxy and stealth
                 # Randomize window size
                 window_w = random.randint(1500, 1700)
                 window_h = random.randint(1225, 1425)
                 extra_chromium_args = [
-                    f"--window-size={window_w},{window_h}"
+                    f"--window-size={window_w},{window_h}",
                 ]
+                
+                proxy_server = random.choice(PROXY_LIST)
 
-                proxy_config = None
-                if PROXY_LIST:
-                    proxy_server = random.choice(PROXY_LIST)
-                    proxy_config = {
-                        "server": f"http://{proxy_server}", # Assuming HTTP proxies
-                        # Add username/password if required by your proxies
-                        # "username": os.getenv("PROXY_USERNAME"),
-                        # "password": os.getenv("PROXY_PASSWORD")
-                    }
-                    logger.info(f"Using proxy: {proxy_server}")
-                else:
-                     logger.info("Running without proxy.")
-
+                # Load proxy settings from environment
+                proxy = {
+                    "server": f"http://{proxy_server}",
+                    "username": "",  # Add if your proxies require auth
+                    "password": ""   # Add if your proxies require auth
+                }
+                logger.info(f"Using proxy: {proxy_server}")
+                
                 cdp_url = os.getenv("CHROME_CDP", cdp_url)
-                chrome_path = os.getenv("CHROME_PATH") # Returns None if not set
-                chrome_user_data = os.getenv("CHROME_USER_DATA")
-
+                chrome_path = os.getenv("CHROME_PATH", None)
+                if chrome_path == "":
+                    chrome_path = None
+                chrome_user_data = os.getenv("CHROME_USER_DATA", None)
                 if chrome_user_data:
-                    # Ensure user data dir exists or create it if desired
-                    # os.makedirs(chrome_user_data, exist_ok=True)
-                    extra_chromium_args.append(f"--user-data-dir={chrome_user_data}")
-                    logger.info(f"Using Chrome user data dir: {chrome_user_data}")
-
+                    extra_chromium_args += [f"--user-data-dir={chrome_user_data}"]
 
                 browser_config = BrowserConfig(
-                    headless=False, # Consider making configurable
-                    disable_security=True, # Use with caution
+                    headless=False,
+                    disable_security=True,
                     cdp_url=cdp_url,
-                    chrome_instance_path=chrome_path if chrome_path else None, # Pass None if empty string
+                    chrome_instance_path=chrome_path,
                     extra_chromium_args=extra_chromium_args,
-                    proxy=proxy_config
+                    proxy=proxy  # Add proxy to config
                 )
                 global_browser = CustomBrowser(config=browser_config)
-                logger.info(f"CustomBrowser connecting via CDP URL: {cdp_url}...")
-                # Note: Connection happens implicitly when context is created or first action taken
+                logger.info(f"CustomBrowser initialized with CDP URL: {cdp_url}")
 
                 # Step 4: Create browser context with stealth script
                 global_browser_context = await global_browser.new_context(
                     config=BrowserContextConfig(
                         trace_path="./tmp/traces" if os.path.exists("./tmp/traces") else None,
                         save_recording_path="./tmp/record_videos" if os.path.exists("./tmp/record_videos") else None,
-                        no_viewport=False, # Important for non-headless
-                        browser_window_size=BrowserContextWindowSize(width=window_w, height=window_h),
-                        # Add user agent override if needed
-                        # user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
+                        no_viewport=False,
+                        browser_window_size=BrowserContextWindowSize(width=window_w, height=window_h)
                     )
                 )
                 logger.info(f"Browser Context created: {global_browser_context}")
 
-                # Apply stealth techniques like emunium
-                page = await global_browser_context.get_current_page() # Get the initial page
-                if not page:
-                    logger.error("Failed to get initial page from browser context.")
-                    raise ConnectionError("Could not get a page from the browser context.")
+                # Step 5: Initialize controller and page
+                controller = CustomController()
+                page = await global_browser_context.get_current_page()
+                emunium = EmuniumPlaywright(page)
+                logger.info(f"Page initialized: {page}")
 
-
-                logger.info(f"Page initialized: {page.url}") # Log initial URL
-
-
-                # Step 5: Initialize controller
-                controller = CustomController() # Assuming default initialization is fine
-
-                # Simulate human-like behavior before agent starts
-                try:
-                    await page.mouse.move(random.randint(100, 500), random.randint(100, 500))
-                    await asyncio.sleep(random.uniform(0.5, 1.5)) # Short pause after move
-                    await page.evaluate(f"window.scrollBy(0, {random.randint(100, 300)})") # Small random scroll
-                    await asyncio.sleep(random.uniform(1, 3))  # Random delay
-                except Exception as interaction_err:
-                    logger.warning(f"Minor error during initial human-like interaction simulation: {interaction_err}")
-
+                # Simulate human-like behavior
+                await page.mouse.move(random.randint(100, 500), random.randint(100, 500))
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
+                await asyncio.sleep(random.uniform(1, 3))  # Random delay
+                
+                print("Enable Enter 2", enableEnter)
 
                 # Step 6: Create and run agent
                 global_agent = CustomAgent(
                     task=task,
-                    add_infos=add_infos,
+                    add_infos=add_infos,  # Use add_infos correctly
                     use_vision=use_vision,
                     llm=llm,
                     browser=global_browser,
@@ -275,21 +235,20 @@ async def run_browser_job(
                     agent_prompt_class=CustomAgentMessagePrompt,
                     max_actions_per_step=max_actions_per_step,
                     tool_calling_method="auto",
-                    max_input_tokens=128000, # Check model limits
-                    generate_gif=True # Consider making configurable
+                    max_input_tokens=128000,
+                    generate_gif=True
                 )
-                logger.info(f"Agent created. Starting task run (EnableEnter={enableEnter})...")
                 history = await global_agent.run(
                     max_steps=max_steps,
-                    useOwnBrowser=True, # Assuming this means use the browser we set up
-                    enable_emunium=False, # Already applied emunium above
-                    customHistory=True, # Keep custom history handling
+                    useOwnBrowser=True,
+                    enable_emunium=True,
+                    customHistory=True,
                     enableEnter=enableEnter
                 )
-                logger.info(f"Task execution finished. Final Result: {history.final_result()}")
+                logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
                 # Step 7: Determine success status and save history/screenshots
-                success = history.is_successful()
+                success = history.is_successful()  # Check if the task was successful
                 logger.info(f"Task success status: {success}")
 
                 # Define base directories
@@ -305,196 +264,118 @@ async def run_browser_job(
                     os.makedirs(successful_history_dir, exist_ok=True)
                     os.makedirs(successful_screenshot_dir, exist_ok=True)
 
-                # Define history file paths using agent ID
-                agent_id = global_agent.state.agent_id
-                history_file = os.path.join(base_history_dir, f"{agent_id}.json")
-                successful_history_file = os.path.join(successful_history_dir, f"{agent_id}.json") if success else None
+                # Define history file paths
+                history_file = os.path.join(base_history_dir, f"{global_agent.state.agent_id}.json")
+                successful_history_file = os.path.join(successful_history_dir, f"{global_agent.state.agent_id}.json") if success else None
 
-                # Define screenshot directories using agent ID (more robust than run number)
-                run_screenshot_dir = os.path.join(base_screenshot_dir, agent_id)
-                successful_run_screenshot_dir = os.path.join(successful_screenshot_dir, agent_id) if success else None
-                # Note: Screenshots are usually saved directly by the agent/browser actions into a dir related to agent_id
+                # Define screenshot directories (use run number from agent)
+                run_screenshot_dir = os.path.join(base_screenshot_dir, f"run_{global_agent.run_number}")
+                successful_run_screenshot_dir = os.path.join(successful_screenshot_dir, f"run_{global_agent.run_number}") if success else None
+                os.makedirs(run_screenshot_dir, exist_ok=True)
+                if success:
+                    os.makedirs(successful_run_screenshot_dir, exist_ok=True)
 
-                # Save history
+                # Save history to agent_history
                 global_agent.save_history(history_file)
                 logger.info(f"Agent history saved to {history_file}")
-                if success and successful_history_file:
+
+                # If successful, also save history to agent_history_successful
+                if success:
                     global_agent.save_history(successful_history_file)
-                    logger.info(f"Successful agent history also saved to {successful_history_file}")
+                    logger.info(f"Agent history also saved to {successful_history_file}")
 
-
-                # Move/Copy screenshots (Assuming they are initially saved in a standard location relative to the agent run)
-                # The CustomAgent/Browser likely handles saving screenshots to a path like './tmp/screenshots/{agent_id}/...'
-                # If they are saved elsewhere, adjust the 'original_screenshot_dir' logic.
-                original_screenshot_dir = os.path.join("./tmp/screenshots", agent_id) # Default expected path
-
+                # Move screenshots to the base screenshots directory
+                original_screenshot_dir = os.path.join("./tmp/screenshots", f"run_{global_agent.run_number}")
                 if os.path.exists(original_screenshot_dir):
-                     # If success, copy to successful dir first
-                    if success and successful_run_screenshot_dir:
-                        try:
-                            shutil.copytree(original_screenshot_dir, successful_run_screenshot_dir, dirs_exist_ok=True)
-                            logger.info(f"Screenshots copied to successful directory: {successful_run_screenshot_dir}")
-                        except Exception as copy_err:
-                            logger.error(f"Error copying screenshots to success directory: {copy_err}")
+                    for filename in os.listdir(original_screenshot_dir):
+                        src_path = os.path.join(original_screenshot_dir, filename)
+                        dst_path = os.path.join(run_screenshot_dir, filename)
+                        os.rename(src_path, dst_path)  # Move the screenshot
+                        # If successful, also copy to screenshots_successful
+                        if success:
+                            successful_dst_path = os.path.join(successful_run_screenshot_dir, filename)
+                            os.makedirs(os.path.dirname(successful_dst_path), exist_ok=True)
+                            shutil.copy(dst_path, successful_dst_path)  # Use shutil.copy instead of os.copy
+                            logger.info(f"Screenshot copied to {successful_dst_path}")
+                    logger.info(f"Screenshots moved to {run_screenshot_dir}")
+                    # Remove the original directory if empty
+                    try:
+                        os.rmdir(original_screenshot_dir)
+                    except OSError:
+                        pass  # Directory might not be empty or already removed
 
-                    # Decide if you want to keep the base screenshots or remove them after copy
-                    # To keep them (useful for debugging all runs):
-                    logger.info(f"Screenshots available in base directory: {original_screenshot_dir}")
-                    # To remove them if successful (save space):
-                    # if success:
-                    #     try:
-                    #         shutil.rmtree(original_screenshot_dir)
-                    #         logger.info(f"Removed original screenshots from {original_screenshot_dir} after successful copy.")
-                    #     except Exception as rm_err:
-                    #         logger.error(f"Error removing original screenshots: {rm_err}")
-
-                else:
-                     logger.warning(f"Screenshot directory not found at expected location: {original_screenshot_dir}")
-
-
-                # If successful, break the retry loop
                 return history.final_result()
 
             except Exception as e:
-                error_msg = f"Error on attempt {attempt} (Run {run_count}): {str(e)}\n{traceback.format_exc()}"
+                error_msg = f"Error on attempt {attempt}: {str(e)}\n{traceback.format_exc()}"
                 logger.error(error_msg)
-
-                # Capture screenshot for debugging if possible
+                # Capture screenshot for debugging
                 if global_browser_context:
-                     try:
-                        page = await global_browser_context.get_current_page()
-                        if page and not page.is_closed():
-                            screenshot_path = f"./tmp/error_screenshot_run_{run_count}_attempt_{attempt}.png"
-                            os.makedirs("./tmp", exist_ok=True) # Ensure tmp dir exists
-                            await page.screenshot(path=screenshot_path, full_page=True) # Capture full page on error
-                            logger.info(f"Error screenshot saved to {screenshot_path}")
-                        else:
-                             logger.warning("Could not capture error screenshot: Page is closed or unavailable.")
-                     except Exception as ss_err:
-                         logger.error(f"Failed to take error screenshot: {ss_err}")
-
-
-                attempt += 1 # Increment attempt counter
-                if attempt <= max_attempts_per_task:
+                    page = await global_browser_context.get_current_page()
+                    if page:
+                        screenshot_path = f"./tmp/screenshot_run_{run_count}_attempt_{attempt}.png"
+                        await page.screenshot(path=screenshot_path)
+                        logger.info(f"Screenshot saved to {screenshot_path}")
+                if attempt < max_attempts_per_task:
                     logger.info(f"Retrying in {retry_delay} seconds...")
-                    # Close resources before retry
                     await close_browser_resources(global_browser, global_browser_context)
                     global_browser = None
                     global_browser_context = None
-                    global_agent = None # Reset agent
+                    global_agent = None
                     await asyncio.sleep(retry_delay)
+                    attempt += 1
                 else:
-                    logger.error(f"Max attempts ({max_attempts_per_task}) reached for task on run {run_count}.")
-                    # Ensure resources are closed on final failure before returning None
-                    await close_browser_resources(global_browser, global_browser_context)
-                    global_browser = None
-                    global_browser_context = None
-                    global_agent = None
-                    return None # Indicate failure after all attempts
+                    logger.error(f"Max attempts ({max_attempts_per_task}) reached for task.")
+                    return None
             finally:
-                # This block executes whether the try block succeeded or failed (after return or exception)
-                # Close resources if 'keep_browser_open' is False and they haven't been closed already
-                # (e.g., successful run or final failed attempt might have already closed them)
-                if not keep_browser_open and (global_browser or global_browser_context):
-                    logger.info(f"Closing browser resources for run {run_count} as keep_browser_open is False.")
+                if not keep_browser_open:
                     await close_browser_resources(global_browser, global_browser_context)
                     global_browser = None
                     global_browser_context = None
                     global_agent = None
 
-
-    # This should theoretically not be reached if the loop logic is correct,
-    # but acts as a fallback return if the loop exits unexpectedly.
-    logger.warning(f"Exited run_browser_job loop unexpectedly for run {run_count}.")
-    await close_browser_resources(global_browser, global_browser_context) # Final cleanup attempt
     return None
 
-
 async def main_loop():
-    """Main loop to keep running tasks from a JSON prompt file with periodic long delays."""
-    prompt_file = "prompts/youtube_promotion_prompt3.json" # Make easily configurable
-    task, add_infos = load_json_prompt(file_path=prompt_file)
+    """Main loop to keep running tasks from a JSON prompt file with region-specific prompts."""
+    task, add_infos = load_json_prompt(file_path="prompts/youtube_promotion_prompt3.json")
     if not task:
-        logger.error(f"Failed to load task from '{prompt_file}'. Exiting.")
+        logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
 
-    run_count = 0 # Start at 0, will be incremented to 1 before the first run
-    max_runs = 5000 # Make configurable if needed
-
-    # --- Delay Configuration ---
-    SHORT_DELAY_SECONDS = 25
-    LONG_DELAY_MINUTES = 10
-    LONG_DELAY_SECONDS = LONG_DELAY_MINUTES * 60
-    # Apply long delay every N runs (e.g., 20, 25)
-    LONG_DELAY_INTERVAL = random.randint(20, 25) # Randomize interval slightly per script start
-    logger.info(f"Configuration: Short delay={SHORT_DELAY_SECONDS}s. Long delay={LONG_DELAY_MINUTES}min every {LONG_DELAY_INTERVAL} runs.")
-    # --- End Delay Configuration ---
-
+    run_count = 1
+    max_runs = 5000
 
     while max_runs is None or run_count < max_runs:
-        run_count += 1 # Increment run counter for the current run
-        logger.info(f"--- Starting Run {run_count}/{max_runs if max_runs else 'infinity'} ---")
+        run_count += 1
+        logger.info(f"Starting run {run_count}")
 
         try:
             result = await run_browser_job(
                 task=task,
                 add_infos=add_infos,
-                max_steps=40, # Make configurable if needed
-                max_actions_per_step=3, # Make configurable if needed
-                retry_delay=25, # Make configurable if needed
-                max_attempts_per_task=3, # Make configurable if needed
+                max_steps=40,
+                max_actions_per_step=3,
+                retry_delay=25,
+                max_attempts_per_task=3,
                 run_count=run_count,
-                enableEnter=False, # Make configurable if needed
-                use_vision=False # Make configurable if needed
-            )
+                enableEnter=False
+            )  # type: ignore
             if result:
-                logger.info(f"Run {run_count} completed successfully. Result snippet: {str(result)[:100]}...") # Log snippet
+                logger.info(f"Run {run_count} completed successfully with result: {result}")
             else:
                 logger.warning(f"Run {run_count} failed after all attempts.")
-
+            logger.info(f"Waiting 25 seconds before next run...")
+            await asyncio.sleep(25)
         except Exception as e:
-            logger.error(f"Critical unexpected error in main_loop during run {run_count}: {str(e)}\n{traceback.format_exc()}")
-            # Decide if you want to stop the loop on critical errors or just wait and continue
-            logger.info("A critical error occurred, applying short delay before attempting next run.")
-            await asyncio.sleep(SHORT_DELAY_SECONDS) # Apply short delay even after critical error before next run
-
-        finally:
-            # --- Delay Logic ---
-            # Check if it's time for a long delay (and not the very last run if max_runs is set)
-            if run_count % LONG_DELAY_INTERVAL == 0 and (max_runs is None or run_count < max_runs):
-                logger.info(f"Run {run_count} finished. Applying long delay ({LONG_DELAY_MINUTES} minutes) as run count is multiple of {LONG_DELAY_INTERVAL}.")
-                await asyncio.sleep(LONG_DELAY_SECONDS)
-                # Optional: Recalculate LONG_DELAY_INTERVAL for the next cycle
-                LONG_DELAY_INTERVAL = random.randint(20, 25)
-                logger.info(f"Next long delay will be after {LONG_DELAY_INTERVAL} more runs.")
-            # Apply short delay if it's not the last run
-            elif max_runs is None or run_count < max_runs:
-                logger.info(f"Run {run_count} finished. Waiting {SHORT_DELAY_SECONDS} seconds before next run...")
-                await asyncio.sleep(SHORT_DELAY_SECONDS)
-            else:
-                logger.info(f"Run {run_count} was the last run ({max_runs}). No further delay needed.")
-            # --- End Delay Logic ---
-
-
-    logger.info("Main loop finished after reaching max runs or stopping.")
-
+            logger.error(f"Unexpected error in run {run_count}: {str(e)}\n{traceback.format_exc()}")
+            logger.info(f"Waiting 25 seconds before retrying...")
+            await asyncio.sleep(25)
 
 if __name__ == "__main__":
-    # Ensure necessary directories exist
-    os.makedirs("./tmp/agent_history", exist_ok=True)
-    os.makedirs("./tmp/screenshots", exist_ok=True)
-    os.makedirs("./tmp/agent_history_successful", exist_ok=True)
-    os.makedirs("./tmp/screenshots_successful", exist_ok=True)
-    os.makedirs("./tmp/traces", exist_ok=True)
-    os.makedirs("./tmp/record_videos", exist_ok=True)
-
     try:
         asyncio.run(main_loop())
     except KeyboardInterrupt:
-        logger.info("Program terminated by user (KeyboardInterrupt).")
+        logger.info("Program terminated by user.")
     except Exception as e:
-        logger.critical(f"Critical error preventing main loop execution: {str(e)}\n{traceback.format_exc()}")
-    finally:
-        logger.info("Script exit.")
-        # Attempt a final cleanup of any lingering Chrome processes
-        terminate_chrome_process(cdp_port=9222)
+        logger.error(f"Critical error in main loop: {str(e)}\n{traceback.format_exc()}")
