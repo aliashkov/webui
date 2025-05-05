@@ -474,7 +474,7 @@ class CustomAgent(Agent):
 
         try:
             state = await self.browser_context.get_state()
-            """ print("State", state) """
+            """ print("State", state.screenshot) """
 
 
             await self._raise_if_stopped_or_paused()
