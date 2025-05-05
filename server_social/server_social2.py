@@ -245,14 +245,6 @@ async def run_browser_job(
                     logger.error("Failed to get initial page from browser context.")
                     raise ConnectionError("Could not get a page from the browser context.")
 
-                if enable_emunium:
-                    try:
-                        emunium = EmuniumPlaywright(page)
-                        await emunium.imitate() # Apply stealth patches
-                        logger.info("Emunium stealth applied.")
-                    except Exception as emu_err:
-                        logger.warning(f"Failed to apply Emunium stealth: {emu_err}")
-
 
                 logger.info(f"Page initialized: {page.url}") # Log initial URL
 
@@ -368,7 +360,7 @@ async def run_browser_job(
                 logger.error(error_msg)
 
                 # Capture screenshot for debugging if possible
-                if global_browser_context and not global_browser_context.is_closed():
+                if global_browser_context:
                      try:
                         page = await global_browser_context.get_current_page()
                         if page and not page.is_closed():
