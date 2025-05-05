@@ -235,7 +235,7 @@ class CustomController(Controller):
                 """ await page.wait_for_load_state('networkidle') """
                     
                 if self._emunium:
-                    await target_browser.type_at_element(css_selector, params.text, 30000, enableEnter=self.enable_enter)
+                    await target_browser.type_at_element(css_selector, params.text, 12000, enableEnter=self.enable_enter)
                     msg = f"⌨️ Custom Input into index {params.index}"
                 else:
                     await target_browser._input_text_element_node(element_node, params.text)
