@@ -308,12 +308,7 @@ class CustomBrowserContext(BrowserContext):
 
 
             await element.focus()
-            await asyncio.sleep(0.1) # Delay after focus
-            logger.debug(f"Attempting clear via triple-click + Delete: {selector}")
-            await element.click(click_count=3, delay=50) # Triple click with small delay between clicks
-            await asyncio.sleep(0.1) # Delay after clicks
             await element.press('Delete') # Press Delete key
-            await asyncio.sleep(0.1) # Delay after delete
             
             
             await self._emunium.move_to(element) # Move mouse over the element
