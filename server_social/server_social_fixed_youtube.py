@@ -37,11 +37,12 @@ CONFIG = {
     "MAX_ATTEMPTS_PER_TASK": 3,  # Maximum retry attempts per task
     "ENABLE_ENTER": False,  # Enable Enter key simulation
     "CDP_PORT": 9222,  # Chrome DevTools Protocol port
-    "WINDOW_WIDTH": 1400,  # Default window width
+    "WINDOW_WIDTH": 1500,  # Default window width
     "WINDOW_HEIGHT": 1025,  # Default window height
     "KEEP_BROWSER_OPEN": False,  # Whether to keep browser open after task
     "USE_VISION": False,  # Enable vision-based processing
     "MAX_RUNS": 5000,  # Maximum number of runs in main loop
+    "USE_OWN_BROWSER": True, # Enable custom browser
     "PROXY_LIST": [
         "37.235.23.217:8080",
         "43.153.69.25:13001",
@@ -171,8 +172,8 @@ async def run_browser_job(
 
                 # Step 3: Initialize browser with proxy and stealth
                 # Randomize window size
-                window_w = random.randint(1500, 1700)
-                window_h = random.randint(1225, 1425)
+                window_w = random.randint(CONFIG["WINDOW_WIDTH"], CONFIG["WINDOW_WIDTH"] + 200)
+                window_h = random.randint(CONFIG["WINDOW_HEIGHT"], CONFIG["WINDOW_HEIGHT"] + 200)
                 extra_chromium_args = [
                     f"--window-size={window_w},{window_h}",
                 ]
@@ -244,7 +245,7 @@ async def run_browser_job(
                 )
                 history = await global_agent.run(
                     max_steps=CONFIG["MAX_STEPS"],
-                    useOwnBrowser=True,
+                    useOwnBrowser=CONFIG["USE_OWN_BROWSER"],
                     enable_emunium=CONFIG["ENABLE_EMUNIUM"],
                     customHistory=True,
                     enableEnter=CONFIG["ENABLE_ENTER"]
