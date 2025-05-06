@@ -243,7 +243,8 @@ async def run_browser_job(
                     useOwnBrowser=True,
                     enable_emunium=True,
                     customHistory=True,
-                    enableEnter=enableEnter
+                    enableEnter=enableEnter,
+                    enableClick=True
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
