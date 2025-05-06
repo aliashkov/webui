@@ -43,7 +43,7 @@ CONFIG = {
     "USE_VISION": False,  # Enable vision-based processing
     "MAX_RUNS": 5000,  # Maximum number of runs in main loop
     "USE_OWN_BROWSER": True, # Enable custom browser
-    "ENABLE_CLICK": True,
+    "ENABLE_CLICK": False,
     "PROXY_LIST": [
         "37.235.23.217:8080",
         "43.153.69.25:13001",
