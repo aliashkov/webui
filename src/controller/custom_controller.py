@@ -20,6 +20,7 @@ class CustomController(Controller):
         self._emunium_lock = asyncio.Lock()  # Add lock for thread safety
         self.browserContextOpt = None
         self.enable_enter = False
+        self.enable_click = False
         super().__init__(exclude_actions=exclude_actions, output_model=output_model)
         self._register_custom_actions()
     def _register_custom_actions(self):
@@ -166,7 +167,7 @@ class CustomController(Controller):
 
                 msg = None
 
-                if self._emunium:
+                if self._emunium and self.enable_click:
                         # Use emunium-specific clicking method with enhanced CSS selector
                     css_selector = browser._enhanced_css_selector_for_element(
                         element_node, include_dynamic_attributes=True
@@ -259,7 +260,8 @@ class CustomController(Controller):
         context: Optional[Context] = None,
         enable_emunium=False,  # Add comma here
         browserContextOpt: Optional[CustomBrowserContext] = None,
-        enableEnter: Optional[bool] = False
+        enableEnter: Optional[bool] = False,
+        enableClick: Optional[bool] = False
     ) -> ActionResult:
         """Execute a custom action using the registry."""
         try:
@@ -270,6 +272,9 @@ class CustomController(Controller):
                 print("Page", page.viewport_size) # type: ignore """
             if enableEnter:
                 self.enable_enter = enableEnter
+                
+            if enableClick:
+                self.enable_click = enableClick
 
             if enable_emunium:
                 self._emunium = enable_emunium

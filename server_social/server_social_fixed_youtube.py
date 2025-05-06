@@ -43,6 +43,7 @@ CONFIG = {
     "USE_VISION": False,  # Enable vision-based processing
     "MAX_RUNS": 5000,  # Maximum number of runs in main loop
     "USE_OWN_BROWSER": True, # Enable custom browser
+    "ENABLE_CLICK": True,
     "PROXY_LIST": [
         "37.235.23.217:8080",
         "43.153.69.25:13001",
@@ -248,7 +249,8 @@ async def run_browser_job(
                     useOwnBrowser=CONFIG["USE_OWN_BROWSER"],
                     enable_emunium=CONFIG["ENABLE_EMUNIUM"],
                     customHistory=True,
-                    enableEnter=CONFIG["ENABLE_ENTER"]
+                    enableEnter=CONFIG["ENABLE_ENTER"],
+                    enableClick=CONFIG["ENABLE_CLICK"]
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
