@@ -166,7 +166,7 @@ class CustomController(Controller):
 
                 msg = None
 
-                """ if self._emunium:
+                if self._emunium:
                         # Use emunium-specific clicking method with enhanced CSS selector
                     css_selector = browser._enhanced_css_selector_for_element(
                         element_node, include_dynamic_attributes=True
@@ -179,17 +179,17 @@ class CustomController(Controller):
                     if download_path:
                         msg = f"💾 Downloaded file to {download_path}"
                     else:
-                        msg = f"🖱️ Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}" """
+                        msg = f"🖱️ Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"
                         
                         
-                download_path = await browser._click_element_node(element_node)
+                """ download_path = await browser._click_element_node(element_node)
                 if download_path:
                     msg = f"💾 Downloaded file to {download_path}"
                 else:
                     msg = f"🖱️ Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"        
 
                 logger.info(msg)
-                logger.debug(f"Element xpath: {element_node.xpath}")
+                logger.debug(f"Element xpath: {element_node.xpath}") """
 
                     # Handle new tab if opened
                 if len(session.context.pages) > initial_pages:

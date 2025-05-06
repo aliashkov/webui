@@ -205,7 +205,6 @@ class CustomBrowserContext(BrowserContext):
             raise
 
     async def click_element(self, selector: str, timeout: int = 30000, retries: int = 3):
-        """Click an element with human-like behavior using emunium, with fallback to Playwright."""
         for attempt in range(retries):
             try:
                 await self._ensure_emunium_initialized()
@@ -213,60 +212,74 @@ class CustomBrowserContext(BrowserContext):
                 if page is None:
                     raise RuntimeError("No current page available")
 
-                # Wait for page stability
                 await page.evaluate('document.body.style.zoom = 1')
+                element = await page.wait_for_selector(selector, state="visible", timeout=timeout) # Убедимся, что он видим
+                if not element: # wait_for_selector сам вызовет TimeoutError, но для ясности
+                    raise ValueError(f"Element with selector {selector} not found or not visible")
 
-                # Wait for the element to be visible
-                element = await page.wait_for_selector(selector, state="visible", timeout=timeout)
-                if not element:
-                    raise ValueError(f"Element with selector {selector} not found")
-
-                # Ensure element is visible and in viewport
                 if not await element.is_visible():
                     raise ValueError(f"Element {selector} is not visible")
+
+                # Playwright's scroll, если нужен (может быть избыточен, если Emunium скроллит)
                 await element.scroll_into_view_if_needed()
+                await asyncio.sleep(0.1) # Небольшая пауза после Playwright скролла
 
-                # Get bounding box and convert coordinates to integers
-                """ bounding_box = await element.bounding_box()
-                if not bounding_box:
-                    raise ValueError(f"Element {selector} has no bounding box")
+                # Получаем bounding_box ПЕРЕД Emunium скроллом для передачи в Emunium.scroll_to,
+                # если Emunium.scroll_to ожидает сам элемент, а не его bounding_box,
+                # то он внутри себя должен получить bounding_box.
+                # bounding_box_before_emunium_scroll = await element.bounding_box()
+                # if not bounding_box_before_emunium_scroll:
+                #     raise ValueError(f"Element {selector} has no bounding box before emunium scroll")
 
-                # Round coordinates to integers
-                bounding_box = {
-                    'x': int(bounding_box['x']),
-                    'y': int(bounding_box['y']),
-                    'width': int(bounding_box['width']),
-                    'height': int(bounding_box['height'])
+                logger.debug(f"Attempting Emunium scroll for {selector}")
+                await self._emunium.scroll_to(element) # Emunium скроллит используя pyautogui
+                
+                # ВАЖНО: Даем браузеру время "осознать" скролл и перерисоваться
+                await asyncio.sleep(0.3) # Можно подобрать значение, 0.2-0.5с
+
+                # ВАЖНО: После системного скролла (pyautogui) Playwright может иметь
+                # устаревшие данные о положении элемента. Получаем свежий bounding_box.
+                current_bounding_box = await element.bounding_box()
+                if not current_bounding_box:
+                    # Это маловероятно, если элемент был видим и скролл прошел, но для надежности
+                    logger.warning(f"Element {selector} has no bounding box AFTER emunium scroll. Retrying Playwright click.")
+                    await element.click(timeout=5000) # Быстрый Playwright клик как fallback
+                    return
+                
+                # Округляем координаты
+                current_bounding_box = {
+                    'x': int(current_bounding_box['x']),
+                    'y': int(current_bounding_box['y']),
+                    'width': int(current_bounding_box['width']),
+                    'height': int(current_bounding_box['height'])
                 }
-                logger.debug(f"Clicking element {selector} with bounding box: {bounding_box}")
+                logger.debug(f"Clicking element {selector} with FRESH bounding box after emunium scroll: {current_bounding_box}")
+                
+                # Проверка, находится ли элемент в пределах вьюпорта (после Emunium скролла)
+                # viewport_size = page.viewport_size # {'width': ..., 'height': ...}
+                # if not (0 <= current_bounding_box['y'] < viewport_size['height'] and \
+                #         0 <= current_bounding_box['y'] + current_bounding_box['height'] <= viewport_size['height']):
+                #     logger.warning(f"Element {selector} y-coords {current_bounding_box['y']}-{current_bounding_box['y']+current_bounding_box['height']} partially or fully outside viewport height {viewport_size['height']} after Emunium scroll. Attempting Playwright click.")
+                #     await element.click(timeout=5000) # Быстрый Playwright клик
+                #     return
 
-                # Check if element is within viewport
-                viewport_height = page.viewport_size['height']
-                if bounding_box['y'] + bounding_box['height'] > viewport_height:
-                    logger.warning(f"Element at y={bounding_box['y']} exceeds viewport height={viewport_height}")
-                    await page.evaluate(f"window.scrollBy(0, {bounding_box['y'] + bounding_box['height'] - viewport_height + 10});")
-                    bounding_box = await element.bounding_box()  # Recompute after scrolling
-                    logger.debug(f"Adjusted bounding box after scroll: {bounding_box}") """
-
-                # Try Emunium click
                 try:
-                    await self._emunium.scroll_to(element)
-                    await self._emunium.click_at(element)
+                    # Передаем сам элемент, т.к. click_at внутри себя должен взять свежий bounding_box
+                    # или, если click_at ожидает box, передаем current_bounding_box
+                    await self._emunium.click_at(element) # Предполагается, что click_at внутри возьмет свежий bounding_box
                     logger.info(f"Clicked element {selector} with Emunium")
                     return
                 except Exception as emunium_error:
                     logger.warning(f"Emunium click failed: {str(emunium_error)}. Falling back to Playwright click.")
-
-                    # Fallback to Playwright click
-                    await element.click()
-                    logger.info(f"Clicked element {selector} with Playwright")
+                    await element.click() # Playwright клик как fallback
+                    logger.info(f"Clicked element {selector} with Playwright fallback")
                     return
 
             except Exception as e:
-                logger.error(f"Attempt {attempt + 1} failed for selector {selector}: {str(e)}")
+                logger.error(f"Attempt {attempt + 1} to click {selector} failed: {str(e)}")
                 if attempt == retries - 1:
                     raise
-                await asyncio.sleep(random.uniform(0.5, 1.0))  # Random delay before retry
+                await asyncio.sleep(random.uniform(0.5, 1.0))
 
         raise RuntimeError(f"Failed to click element {selector} after {retries} attempts")
 
