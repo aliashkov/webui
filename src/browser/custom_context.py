@@ -284,64 +284,98 @@ class CustomBrowserContext(BrowserContext):
         raise RuntimeError(f"Failed to click element {selector} after {retries} attempts")
 
     async def type_at_element(self, selector: str, text: str, timeout: int = 30000, enableEnter: bool = True):
-        """Type text into an element with human-like behavior using emunium, ensuring the field is cleared first."""
+        page = await self.get_current_page()
+        if page is None:
+            raise RuntimeError("No current page available. Ensure browser and page are initialized.")
+
         try:
             await self._ensure_emunium_initialized()
-            page = await self.get_current_page()
-            if page is None:
-                raise RuntimeError("No current page available")
 
-            # Wait for page stability (optional but sometimes helpful)
-            # await page.wait_for_load_state('networkidle') # Consider using this if needed
+            logger.debug(f"Attempting to type '{text}' into element '{selector}'")
+
             await page.evaluate('document.body.style.zoom = 1')
+            logger.debug("Page zoom reset to 1.")
+            await asyncio.sleep(0.05)
 
-            element = await page.wait_for_selector(selector, timeout=timeout) # Wait for visible
-            if not element:
-                raise ValueError(f"Element with selector {selector} not found")
+            logger.debug(f"Waiting for selector '{selector}' to be visible.")
+            element = await page.wait_for_selector(selector, state="visible", timeout=timeout)
+            logger.debug(f"Element '{selector}' found.")
 
-            # Ensure element is visible and in viewport
-            # The state="visible" above helps, but scroll_into_view is still good practice
             await element.scroll_into_view_if_needed()
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.2) # Небольшая пауза после скролла
+            logger.debug(f"Scrolled '{selector}' into view if needed.")
 
-            logger.debug(f"Clearing input field: {selector}")
-            """ await element.fill("") """
-
-            # Get bounding box (for logging/debugging, not strictly needed for the fix)
-            bounding_box = await element.bounding_box()
-            if not bounding_box:
-                # This shouldn't happen if wait_for_selector succeeded, but check just in case
-                 logger.warning(f"Element {selector} has no bounding box after clearing/scrolling.")
-                 # Attempt focus before proceeding
-                 await element.focus()
-                 bounding_box = await element.bounding_box()
-                 if not bounding_box:
-                    raise ValueError(f"Element {selector} still has no bounding box")
-            print(f"Typing into element {selector} with bounding box: {bounding_box}")
-
-
-            await element.focus()
+            logger.debug(f"Focusing element: '{selector}'")
+            try:
+                await element.focus(timeout=5000) # Добавим таймаут на фокус
+            except Exception as focus_err:
+                logger.warning(f"Could not focus element '{selector}': {focus_err}. Proceeding, but typing might fail.")
             await asyncio.sleep(0.1)
 
-            # Clear the content using JavaScript
-            await element.evaluate('el => { el.textContent = ""; }')
-            
-            
-            await self._emunium.move_to(element) # Move mouse over the element
-            await self._emunium.type_at(element, text) # Type the text
+            # --- Модифицированный блок очистки и проверки ---
+            tag_name = await element.evaluate("el => el.tagName.toUpperCase()")
+            is_content_editable = await element.evaluate("el => el.isContentEditable")
+
+            if tag_name in ["INPUT", "TEXTAREA"] or is_content_editable:
+                logger.debug(f"Clearing field '{selector}' using element.fill('')")
+                await element.fill("")
+                await asyncio.sleep(0.1)
+
+                current_value_for_check = ""
+                if tag_name in ["INPUT", "TEXTAREA"]:
+                    current_value_for_check = await element.input_value()
+                elif is_content_editable:
+                    current_value_for_check = await element.text_content() or ""
+
+                if current_value_for_check.strip() != "":
+                    logger.warning(f"Field '{selector}' not empty after fill(''). Current value/text: '{current_value_for_check}'. Attempting JS clear.")
+                    if tag_name in ["INPUT", "TEXTAREA"]:
+                        await element.evaluate('el => { el.value = ""; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }')
+                    elif is_content_editable:
+                        await element.evaluate('el => { el.innerHTML = ""; el.dispatchEvent(new Event("input", { bubbles: true })); }')
+                    await asyncio.sleep(0.1)
+
+                    if tag_name in ["INPUT", "TEXTAREA"]:
+                        current_value_for_check = await element.input_value()
+                    elif is_content_editable:
+                        current_value_for_check = await element.text_content() or ""
+
+                    if current_value_for_check.strip() != "":
+                        logger.error(f"Field '{selector}' could not be cleared. Value/text remains: '{current_value_for_check}'")
+                    else:
+                        logger.debug(f"Field '{selector}' cleared successfully with JS fallback.")
+                else:
+                    logger.debug(f"Field '{selector}' cleared successfully with fill('').")
+            else:
+                logger.info(f"Element '{selector}' (tag: {tag_name}) is not a standard input, textarea, or contenteditable. Skipping standard clear. Emunium will attempt to type.")
+            # --- Конец модифицированного блока ---
+
+            # !!! ВАЖНОЕ ИЗМЕНЕНИЕ НИЖЕ !!!
+            bounding_box = await element.bounding_box()
+            if not bounding_box:
+                logger.error(f"Element '{selector}' has NO BOUNDING BOX after operations. Emunium cannot interact with it. This often means the element is hidden, not truly interactive (e.g., a placeholder requiring a click first), or the UI changed.")
+                raise RuntimeError(f"Element '{selector}' is not interactable (no bounding box). Ensure it's the correct target and visible.")
+            else:
+                logger.debug(f"Element '{selector}' bounding box: {bounding_box}")
+
+            logger.debug(f"Moving mouse via emunium to: '{selector}'")
+            await self._emunium.move_to(element)
+
+            logger.debug(f"Typing text via emunium into: '{selector}'")
+            await self._emunium.type_at(element, text)
 
             if enableEnter:
-               await self._emunium.type_at(element, '\n')
+               logger.debug(f"Pressing Enter via emunium at: '{selector}'")
+               await self._emunium.type_at(element, '\n') # Emunium должен понимать '\n' как Enter
 
-            logger.info(f"Typed '{text}' at element {selector}")
-            
+            logger.info(f"Successfully typed '{text}' at element '{selector}'" + (" and pressed Enter." if enableEnter else "."))
+
         except Exception as e:
-            # Improve error logging
-            current_url = await page.url() if page else "Unknown URL"
-            logger.error(f"Error typing at element '{selector}' on page '{current_url}': {str(e)}", exc_info=True)
-            # Optionally capture screenshot on error
-            # try:
-            #     if page: await page.screenshot(path="error_screenshot_typing.png")
-            # except Exception as screen_err:
-            #     logger.error(f"Failed to take screenshot on error: {screen_err}")
+            current_url = "Unknown URL (page object not available or failed before URL retrieval)"
+            if page:
+                try:
+                    current_url = page.url
+                except Exception as page_url_err:
+                    logger.warning(f"Could not get current URL during error handling: {page_url_err}")
+            logger.error(f"Error in type_at_element for selector '{selector}' on page '{current_url}': {str(e)}", exc_info=True)
             raise
