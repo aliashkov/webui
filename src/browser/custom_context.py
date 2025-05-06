@@ -204,7 +204,7 @@ class CustomBrowserContext(BrowserContext):
             logger.error(f"Error scrolling up: {str(e)}")
             raise
 
-    async def click_element(self, selector: str, timeout: int = 30000, retries: int = 3):
+    async def click_element(self, selector: str, timeout: int = 10000, retries: int = 3):
         for attempt in range(retries):
             try:
                 await self._ensure_emunium_initialized()
