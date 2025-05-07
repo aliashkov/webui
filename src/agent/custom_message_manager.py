@@ -25,6 +25,11 @@ from langchain_openai import ChatOpenAI
 from ..utils.llm import DeepSeekR1ChatOpenAI
 from .custom_prompts import CustomAgentMessagePrompt
 
+# Убедитесь, что эти импорты есть, если они используются в типах или значениях по умолчанию
+from browser_use.agent.views import AgentSettings
+from browser_use.agent.views import AgentStepInfo
+from browser_use.agent.prompts import AgentMessagePrompt # Для типа в CustomMessageManagerSettings
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,7 +42,8 @@ class CustomMessageManager(MessageManager):
             self,
             task: str,
             system_message: SystemMessage,
-            settings: MessageManagerSettings = MessageManagerSettings(),
+            agent_settings: AgentSettings,
+            settings: CustomMessageManagerSettings = CustomMessageManagerSettings(),
             state: MessageManagerState = MessageManagerState(),
     ):
         super().__init__(
@@ -46,6 +52,13 @@ class CustomMessageManager(MessageManager):
             settings=settings,
             state=state
         )
+        self.main_agent_settings: AgentSettings = agent_settings
+        self.system_prompt: SystemMessage = system_message
+        # _init_messages, вероятно, вызывается в super().__init__ или должен быть вызван здесь,
+        # если вы переопределяете его и базовая версия не вызывается.
+        # Если _init_messages из MessageManager не вызывается или вы его переопределили без вызова super:
+        # self._init_messages()
+
 
     def _init_messages(self) -> None:
         """Initialize the message history with system message, context, task, and other initial messages"""
@@ -80,22 +93,44 @@ class CustomMessageManager(MessageManager):
     def add_state_message(
             self,
             state: BrowserState,
-            actions: Optional[List[ActionModel]] = None,
+            actions: Optional[List[ActionModel]] = None, # We know this isn't in the provided __init__
             result: Optional[List[ActionResult]] = None,
             step_info: Optional[AgentStepInfo] = None,
             use_vision=True,
     ) -> None:
-        """Add browser state as human message"""
-        # otherwise add state message and result to next message (which will not stay in memory)
-        state_message = self.settings.agent_prompt_class(
-            state,
-            actions,
-            result,
-            include_attributes=self.settings.include_attributes,
-            step_info=step_info,
-        ).get_user_message(use_vision)
-        self._add_message_with_tokens(state_message)
+        logger.info(f"DEBUG: Instantiating {self.settings.agent_prompt_class.__name__}")
+        logger.info(f"DEBUG: include_attributes to be passed: {self.settings.include_attributes}")
 
+        try:
+            
+            print("Actions", actions)
+            
+            # Call with ONLY the arguments defined in the AgentMessagePrompt code you provided
+            prompt_instance = self.settings.agent_prompt_class(
+                state=state,
+                # actions=actions, # Temporarily remove this, as it's not in the __init__
+                result=result,
+                include_attributes=self.settings.include_attributes, # This is a defined kwarg
+                step_info=step_info
+            )
+            
+            """ print("Prompt instance", prompt_instance) """
+            
+            state_message = prompt_instance.get_user_message(use_vision)
+            
+            """ print("State message", state_message) """
+            
+            self._add_message_with_tokens(state_message)
+        except TypeError as e:
+            logger.error(f"DEBUG: TypeError during AgentMessagePrompt instantiation: {e}")
+            import inspect
+            sig = inspect.signature(self.settings.agent_prompt_class.__init__)
+            logger.error(f"DEBUG: Effective signature of {self.settings.agent_prompt_class.__name__}.__init__: {sig}")
+            # Log the actual arguments being passed if we reach here again
+            passed_args_tuple = (state, result, self.settings.include_attributes, step_info) # based on current call
+            logger.error(f"DEBUG: Args tuple if calling positionally: {passed_args_tuple}")
+            raise
+    
     def _remove_state_message_by_index(self, remove_ind=-1) -> None:
         """Remove state message by index from history"""
         i = len(self.state.history.messages) - 1

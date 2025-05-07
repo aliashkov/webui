@@ -168,17 +168,19 @@ class CustomAgent(Agent):
             "state",
             "metadata"
         ]
+        print("Agent Prompt class", agent_prompt_class)
         self._message_manager = CustomMessageManager(
             task=task,
-            system_message=self.settings.system_prompt_class(
+            system_message=self.settings.system_prompt_class( # This creates the SystemMessage object
                 self.available_actions,
                 max_actions_per_step=self.settings.max_actions_per_step,
             ).get_system_message(),
-            settings=CustomMessageManagerSettings(
+            agent_settings=self.settings, # <--- This is the main AgentSettings from CustomAgent
+            settings=CustomMessageManagerSettings( # These are settings specific to the message manager
                 max_input_tokens=self.settings.max_input_tokens,
                 include_attributes=self.settings.include_attributes,
                 message_context=self.settings.message_context,
-                sensitive_data=sensitive_data,
+                sensitive_data=sensitive_data, # Should be self.sensitive_data if defined in Agent
                 available_file_paths=self.settings.available_file_paths,
                 agent_prompt_class=agent_prompt_class
             ),
