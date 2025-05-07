@@ -42,9 +42,9 @@ CONFIG = {
     "KEEP_BROWSER_OPEN": False,
     "USE_VISION": False,
     "MAX_RUNS": 5000,
-    "USE_OWN_BROWSER": False, # True, если подключаемся к существующему через CDP, False - если Playwright запускает свой
+    "USE_OWN_BROWSER": False,
     "ENABLE_CLICK": True,
-    "HEADLESS_MODE": True,  # <--- ДОБАВЛЕНО: Включите True для headless, False для обычного режима
+    "HEADLESS_MODE": True, 
     "PROXY_LIST": [
         "37.235.23.217:8080",
         "43.153.69.25:13001",
@@ -138,24 +138,16 @@ async def close_browser_resources(browser: CustomBrowser, browser_context: Custo
         except Exception as e:
             logger.error(f"Error closing browser: {e}")
         finally:
-            # Только если мы НЕ используем свой браузер ИЛИ если браузер не должен оставаться открытым,
-            # ИЛИ если мы в headless режиме (т.к. Playwright сам его запустил)
-            # ВАЖНО: terminate_chrome_process убивает процессы по CDP порту.
-            # Если Playwright запустил свой headless браузер, он может не использовать этот CDP порт.
-            # Эту функцию лучше вызывать перед запуском, чтобы очистить старые инстансы.
-            # После закрытия Playwright-управляемого браузера, он сам завершится.
             if not CONFIG["USE_OWN_BROWSER"] or not CONFIG["KEEP_BROWSER_OPEN"] or CONFIG["HEADLESS_MODE"]:
-                 # Если мы управляли собственным браузером и не должны его оставлять открытым, или если это был headless playwright-браузер
-                pass # Playwright сам закроет свой headless-браузер.
+                pass
             elif CONFIG["USE_OWN_BROWSER"] and not CONFIG["KEEP_BROWSER_OPEN"]:
-                # Убиваем внешний браузер, если он не должен оставаться открытым
                 terminate_chrome_process(cdp_port=CONFIG["CDP_PORT"])
 
 
 async def run_browser_job(
     task: str,
     add_infos: str = "",
-    cdp_url_param: str = f"http://localhost:{CONFIG['CDP_PORT']}", # переименовал, чтобы не конфликтовать с переменной cdp_url
+    cdp_url_param: str = f"http://localhost:{CONFIG['CDP_PORT']}",
     window_w: int = CONFIG["WINDOW_WIDTH"],
     window_h: int = CONFIG["WINDOW_HEIGHT"],
     run_count: int = 1,
@@ -331,10 +323,6 @@ async def run_browser_job(
 
                 run_screenshot_dir = os.path.join(base_screenshot_dir, f"run_{global_agent.run_number}")
                 successful_run_screenshot_dir = os.path.join(successful_screenshot_dir, f"run_{global_agent.run_number}") if success else None
-                # os.makedirs(run_screenshot_dir, exist_ok=True) # Это создастся при перемещении ниже, если нужно
-                # if success:
-                #     os.makedirs(successful_run_screenshot_dir, exist_ok=True)
-
                 global_agent.save_history(history_file)
                 logger.info(f"Agent history saved to {history_file}")
                 if success and successful_history_file:
@@ -343,11 +331,6 @@ async def run_browser_job(
 
                 original_screenshot_dir_path = os.path.join("./tmp/screenshots", f"run_{global_agent.run_number}")
                 if os.path.exists(original_screenshot_dir_path):
-                    # Вместо переименования директории, если run_screenshot_dir уже существует (например, от предыдущей попытки),
-                    # просто убедимся, что целевая директория существует и скопируем файлы.
-                    # Или, если мы хотим всегда свежую директорию для каждого run_number, то нужно удалять старую.
-                    # Сейчас будем использовать shutil.move, который может перезаписать, если run_screenshot_dir это файл, или переместить в нее, если это директория.
-                    # Для большей надежности, создадим run_screenshot_dir, если ее нет.
                     os.makedirs(run_screenshot_dir, exist_ok=True)
                     for filename in os.listdir(original_screenshot_dir_path):
                         src_path = os.path.join(original_screenshot_dir_path, filename)
