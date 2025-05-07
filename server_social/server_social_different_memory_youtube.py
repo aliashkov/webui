@@ -20,7 +20,7 @@ sys.path.insert(0, project_root)
 from src.utils import utils
 from src.agent.custom_agent import CustomAgent
 from src.browser.custom_browser import CustomBrowser
-from src.agent.custom_prompts import CustomSystemPrompt #, CustomAgentMessagePrompt # CustomAgentMessagePrompt здесь не используется напрямую
+from src.agent.custom_prompts import CustomAgentMessagePrompt, CustomSystemPrompt #, CustomAgentMessagePrompt # CustomAgentMessagePrompt здесь не используется напрямую
 from src.browser.custom_context import CustomBrowserContext
 from src.controller.custom_controller import CustomController
 from typing import Optional
@@ -193,7 +193,7 @@ async def run_browser_job(
                     logger.error(f"{api_key_name} environment variable not set")
                     raise ValueError(f"{api_key_name} environment variable not set")
                 llm = utils.get_llm_model(
-                    provider="google", model_name="gemini-1.5-flash-latest", temperature=0.6, api_key=api_key
+                    provider="google", model_name="gemini-2.0-flash", temperature=0.6, api_key=api_key
                 )
                 logger.info(f"Using {api_key_name} for run {run_count}, attempt {attempt}")
 
@@ -255,7 +255,7 @@ async def run_browser_job(
                     browser_context=global_browser_context,
                     controller=controller,
                     system_prompt_class=CustomSystemPrompt,
-                    # agent_prompt_class=CustomAgentMessagePrompt, # Уже в CustomAgent по умолчанию
+                    agent_prompt_class=CustomAgentMessagePrompt,
                     max_actions_per_step=CONFIG["MAX_ACTIONS_PER_STEP"],
                     max_input_tokens=128000, # Убедитесь, что модель это поддерживает
                     # generate_gif=True # generate_gif не используется в CustomAgent.run
@@ -297,14 +297,8 @@ async def run_browser_job(
                     shutil.copy(history_file, successful_history_file)
                     logger.info(f"Successful agent history also saved to {successful_history_file}")
 
-                    # Копирование скриншотов для успешного запуска
-                    # screenshot_dir в CustomAgent: self.screenshot_dir = os.path.join("tmp", "screenshots", f"run_{self.run_number}")
-                    # self.run_number в CustomAgent - это не то же самое, что run_count здесь. Нужно синхронизировать или передавать.
-                    # Для простоты, будем использовать agent_id для папки скриншотов, если self.run_number агента не соответствует run_count
-                    
+                 
                     agent_screenshot_dir_name = f"run_{global_agent.run_number}" # Как в CustomAgent
-                    # Если global_agent.run_number отличается от текущего run_count, это может быть проблемой для именования.
-                    # Предположим, global_agent.run_number это уникальный идентификатор сессии агента.
                     
                     current_agent_screenshot_dir = os.path.join(base_screenshot_dir, agent_screenshot_dir_name)
                     
@@ -316,14 +310,11 @@ async def run_browser_job(
                         logger.info(f"Screenshots for successful run {run_count} copied to {successful_agent_screenshot_dest_dir}")
 
 
-                # Формируем структурированный результат
                 visited_urls_this_run = list(set([
                     item.state.url for item in history.history 
                     if hasattr(item, 'state') and hasattr(item.state, 'url') and item.state.url
                 ]))
 
-                # Определение URL, на котором было совершено ключевое действие (например, оставлен комментарий)
-                # Это потребует от агента явно указывать такой URL в своем final_result или через специальное поле в history
                 key_action_url = None
                 final_result_text = str(history.final_result()) if history.final_result() else ""
 
