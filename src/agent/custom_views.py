@@ -96,6 +96,7 @@ class CustomAgentState(BaseModel):
     last_plan: Optional[str] = None
     paused: bool = False
     stopped: bool = False
+    timeout_hit: bool = False
 
     message_manager_state: MessageManagerState = Field(default_factory=MessageManagerState)
 

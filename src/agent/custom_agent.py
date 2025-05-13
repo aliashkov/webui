@@ -132,6 +132,7 @@ class CustomAgent(Agent):
             task=task,
             llm=llm,
             browser=browser,
+            
             browser_context=browser_context,
             controller=controller,
             sensitive_data=sensitive_data,
@@ -574,86 +575,116 @@ class CustomAgent(Agent):
                     self._make_history_item(model_output, state, result, metadata)
                 
                 
-    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium: bool = False, customHistory: Optional[bool] = False, enableEnter: Optional[bool] = False, enableClick:  Optional[bool] = False) -> AgentHistoryList:
-        """Execute the task with maximum number of steps."""
+    async def run(
+        self,
+        max_steps: int = 100,
+        deadline: Optional[float] = None, # MODIFIED: Added deadline
+        browserContext: Optional[CustomBrowserContext] = None,
+        useOwnBrowser: Optional[bool] = False,
+        enable_emunium: bool = False,
+        customHistory: Optional[bool] = False,
+        enableEnter: Optional[bool] = False,
+        enableClick: Optional[bool] = False
+    ) -> AgentHistoryList:
         try:
             self._log_agent_run()
+            self.state.timeout_hit = False # Initialize custom state attribute
 
-            print("Agent", self)
-            print("Browser Context", browserContext)
-            print("Enable Enter 3 ", enableEnter)
+            current_browser_context = browserContext if browserContext else self.browser_context
 
             if self.initial_actions:
-                print("Enable Enter 33 ", enableEnter)
-                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium, enableEnter=enableEnter, enableClick=enableClick)
+                initial_actions_obj = [self.ActionModel(**a) for a in self.initial_actions] # type: ignore
+                result = await self.multi_act_custom(
+                    initial_actions_obj, check_for_new_elements=False,
+                    browserContext=current_browser_context, useOwnBrowser=useOwnBrowser,
+                    enable_emunium=enable_emunium, enableEnter=enableEnter, enableClick=enableClick
+                )
                 self.state.last_result = result
 
             step_info = CustomAgentStepInfo(
-                task=self.task,
-                add_infos=self.add_infos,
-                step_number=1,
-                max_steps=max_steps,
-                memory="",
+                task=self.task, add_infos=self.add_infos, step_number=0, # Start step_number at 0, will be incremented in update_step_info
+                max_steps=max_steps, memory="",
             )
 
-            for step in range(max_steps):
+            for _ in range(max_steps): # Use _ if step variable isn't directly used for iteration count
+                # MODIFIED: Check for deadline
+                if deadline is not None and time.time() >= deadline:
+                    logger.warning(f"Agent task '{self.task}' (Agent ID: {self.state.agent_id}) is stopping due to reaching the time limit.")
+                    self.state.timeout_hit = True
+                    timeout_action_result = ActionResult(error="Task execution timed out.", is_done=True, include_in_memory=True)
+                    if self.state.history.history:
+                        last_item = self.state.history.history[-1]
+                        if last_item.result: last_item.result.append(timeout_action_result)
+                        else: last_item.result = [timeout_action_result]
+                    else: # Create a minimal history item for timeout if history is empty
+                        dummy_state = BrowserStateHistoryCustom(url="N/A", title="Timeout", screenshot="")
+                        dummy_output = CustomAgentOutput.type_with_custom_actions(self.ActionModel)( # type: ignore
+                            current_state={'evaluation_previous_goal': 'Timeout', 'important_contents': '', 'thought': 'Timeout before first step', 'next_goal': ''}, # type: ignore
+                            action=[]
+                        )
+                        timeout_item = AgentHistoryCustom(model_output=dummy_output, result=[timeout_action_result], state=dummy_state)
+                        self.state.history.history.append(timeout_item) # type: ignore
+                        # self.state.n_steps += 1 # Optionally count this as a step
+                    break 
+
                 if self.state.consecutive_failures >= self.settings.max_failures:
                     logger.error(f'❌ Stopping due to {self.settings.max_failures} consecutive failures')
                     break
-
-                if self.state.stopped:
-                    logger.info('Agent stopped')
-                    break
-
+                if self.state.stopped: logger.info('Agent stopped'); break
                 while self.state.paused:
                     await asyncio.sleep(0.2)
-                    if self.state.stopped:
-                        break
+                    if self.state.stopped: break
+                if self.state.stopped: break # Check again after pause
 
-                await self.step(step_info, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium, customHistory=customHistory, enableEnter=enableEnter, enableClick=enableClick)
+                await self.step(
+                    step_info, browserContext=current_browser_context, useOwnBrowser=useOwnBrowser,
+                    enable_emunium=enable_emunium, customHistory=customHistory,
+                    enableEnter=enableEnter, enableClick=enableClick
+                )
 
                 if self.state.history.is_done():
-                    if self.settings.validate_output and step < max_steps - 1:
-                        if not await self._validate_output():
-                            continue
-
-                    await self.log_completion()
+                    if self.settings.validate_output and self.state.n_steps < max_steps : # check step vs max_steps
+                        if not await self._validate_output(): continue
+                    # await self.log_completion() # Moved to post-loop logic
                     break
-            else:
-                logger.info("❌ Failed to complete task in maximum steps")
-                if self.state.history.history:
-                    if not self.state.extracted_content:
-                        self.state.history.history[-1].result[-1].extracted_content = step_info.memory
-                    else:
-                        self.state.history.history[-1].result[-1].extracted_content = self.state.extracted_content
-                else:
-                    logger.warning("History is empty; cannot set extracted_content")
+            
+            # Post-loop status determination
+            final_history = self.state.history
+            if self.state.timeout_hit:
+                logger.warning(f"Agent task '{self.task}' (ID: {self.state.agent_id}) ended due to timeout. Steps: {self.state.n_steps}.")
+                # Ensure final extracted content is set if timeout occurred
+                if final_history.history and hasattr(step_info, 'memory'):
+                    last_res = final_history.history[-1].result
+                    if last_res and (not last_res[-1].extracted_content or "timeout" in last_res[-1].error.lower()): # type: ignore
+                        content = self.state.extracted_content if self.state.extracted_content else step_info.memory
+                        last_res[-1].extracted_content = content
 
-            return self.state.history
+            elif final_history.is_done():
+                if final_history.is_successful():
+                    await self.log_completion()
+                else:
+                    logger.warning(f"Agent task '{self.task}' (ID: {self.state.agent_id}) completed but was not successful. Steps: {self.state.n_steps}. Result: {final_history.final_result()}")
+            elif self.state.n_steps >= max_steps:
+                logger.info(f"❌ Agent task '{self.task}' (ID: {self.state.agent_id}) failed to complete in maximum steps ({max_steps}).")
+                if final_history.history and hasattr(step_info, 'memory'):
+                    if not final_history.history[-1].result: final_history.history[-1].result = [ActionResult()]
+                    content = self.state.extracted_content if self.state.extracted_content else step_info.memory
+                    if not final_history.history[-1].result[-1].extracted_content : final_history.history[-1].result[-1].extracted_content = content
+            else: # Other reasons for loop exit (e.g. manual stop, max failures)
+                 logger.info(f"Agent task '{self.task}' (ID: {self.state.agent_id}) ended. Steps: {self.state.n_steps}. Done: {final_history.is_done()}. Successful: {final_history.is_successful()}. Stopped: {self.state.stopped}")
+
+            return final_history
 
         finally:
-            self.telemetry.capture(
-                AgentEndTelemetryEvent(
-                    agent_id=self.state.agent_id,
-                    is_done=self.state.history.is_done(),
-                    success=self.state.history.is_successful(),
-                    steps=self.state.n_steps,
-                    max_steps_reached=self.state.n_steps >= max_steps,
-                    errors=self.state.history.errors(),
-                    total_input_tokens=self.state.history.total_input_tokens(),
-                    total_duration_seconds=self.state.history.total_duration_seconds(),
-                )
-            )
-
-            if not self.injected_browser_context:
-                await self.browser_context.close()
-
-            if not self.injected_browser and self.browser:
-                await self.browser.close()
-
-            if self.settings.generate_gif and (not customHistory):
-                output_path: str = 'agent_history.gif'
-                if isinstance(self.settings.generate_gif, str):
-                    output_path = self.settings.generate_gif
-
+            self.telemetry.capture(AgentEndTelemetryEvent(
+                agent_id=self.state.agent_id, is_done=self.state.history.is_done(),
+                success=self.state.history.is_successful(), steps=self.state.n_steps,
+                max_steps_reached=(self.state.n_steps >= max_steps and not self.state.timeout_hit and not self.state.history.is_done()),
+                timed_out=self.state.timeout_hit, # Add custom telemetry field if your Event supports it
+                errors=self.state.history.errors(), total_input_tokens=self.state.history.total_input_tokens(),
+                total_duration_seconds=self.state.history.total_duration_seconds()))
+            if not self.injected_browser_context and self.browser_context: await self.browser_context.close()
+            if not self.injected_browser and self.browser: await self.browser.close()
+            if self.settings.generate_gif and not customHistory:
+                output_path = 'agent_history.gif' if isinstance(self.settings.generate_gif, bool) else self.settings.generate_gif
                 create_history_gif(task=self.task, history=self.state.history, output_path=output_path)
