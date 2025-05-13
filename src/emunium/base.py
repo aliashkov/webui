@@ -52,6 +52,7 @@ class EmuniumBase:
             else:
                 self.browser_offsets = (0, 0)
             self.browser_inner_window = get_image_size(temp_screen_path)
+            print("Inner Width" , self.browser_inner_window)
             os.remove(temp_screen_path)
 
     def _get_center(self, element_location, element_size):
