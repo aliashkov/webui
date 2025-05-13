@@ -396,7 +396,7 @@ async def main_loop():
     """Main loop to keep running tasks from a JSON prompt file."""
     # IMPORTANT: Create a new JSON file (e.g., prompts/youtube_multi_promo_prompt.json)
     # with the content provided in step 2, and update the file_path here.
-    task, add_infos = load_json_prompt(file_path="prompts/youtube_multi_promo_prompt.json") # MODIFIED_HERE
+    task, add_infos = load_json_prompt(file_path="prompts/new_youtube_prompt.json") # MODIFIED_HERE
     if not task:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return

@@ -376,7 +376,7 @@ async def run_browser_job(
 
 async def main_loop():
     """Main loop to run work sessions with breaks."""
-    prompt_file_path = "prompts/youtube_multi_promo_prompt.json" # New prompt file
+    prompt_file_path = "prompts/youtube_promotion_prompt6.json" # New prompt file
     task, add_infos = load_json_prompt(file_path=prompt_file_path)
     if not task:
         logger.error(f"Failed to load task from '{prompt_file_path}'. Exiting.")
