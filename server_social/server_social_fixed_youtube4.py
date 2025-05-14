@@ -360,7 +360,7 @@ async def run_browser_job(
 
 
 async def main_loop():
-    task, add_infos = load_json_prompt(file_path="prompts/youtube_promotion_prompt6.json")
+    task, add_infos = load_json_prompt(file_path="prompts/youtube_multi_promo_prompt3.json")
     if not task:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
