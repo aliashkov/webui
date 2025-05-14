@@ -169,10 +169,10 @@ async def run_browser_job(
                     await asyncio.sleep(2) # Даем время на завершение
 
                 # Step 2: Configure LLM ... (без изменений)
-                key_index = run_count % 6
+                key_index = run_count % 4
                 api_key_map = {
                     0: "GOOGLE_API_KEY", 1: "GOOGLE_API_KEY2", 2: "GOOGLE_API_KEY3",
-                    3: "GOOGLE_API_KEY4", 4: "GOOGLE_API_KEY5", 5: "GOOGLE_API_KEY6", 6: "GOOGLE_API_KEY7"
+                    3: "GOOGLE_API_KEY4", 4: "GOOGLE_API_KEY5"
                 }
                 api_key_name = api_key_map.get(key_index, "GOOGLE_API_KEY") # .get с default
                 api_key = os.getenv(api_key_name, "")
