@@ -19,6 +19,8 @@ class CustomController(Controller):
         self._emunium = None  # Use protected attribute
         self._emunium_lock = asyncio.Lock()  # Add lock for thread safety
         self.browserContextOpt = None
+        self.enable_enter = False
+        self.enable_click = False
         super().__init__(exclude_actions=exclude_actions, output_model=output_model)
         self._register_custom_actions()
     def _register_custom_actions(self):
@@ -165,7 +167,7 @@ class CustomController(Controller):
 
                 msg = None
 
-                if self._emunium:
+                if self._emunium and self.enable_click:
                         # Use emunium-specific clicking method with enhanced CSS selector
                     css_selector = browser._enhanced_css_selector_for_element(
                         element_node, include_dynamic_attributes=True
@@ -179,16 +181,23 @@ class CustomController(Controller):
                         msg = f"💾 Downloaded file to {download_path}"
                     else:
                         msg = f"🖱️ Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"
+                        
+                        
+                """ download_path = await browser._click_element_node(element_node)
+                if download_path:
+                    msg = f"💾 Downloaded file to {download_path}"
+                else:
+                    msg = f"🖱️ Clicked button with index {params.index}: {element_node.get_all_text_till_next_clickable_element(max_depth=2)}"        
 
                 logger.info(msg)
-                logger.debug(f"Element xpath: {element_node.xpath}")
+                logger.debug(f"Element xpath: {element_node.xpath}") """
 
                     # Handle new tab if opened
-                """ if len(session.context.pages) > initial_pages:
+                if len(session.context.pages) > initial_pages:
                     new_tab_msg = "New tab opened - switching to it"
                     msg += f" - {new_tab_msg}"
                     logger.info(new_tab_msg)
-                    await browser.switch_to_tab(-1) """
+                    await browser.switch_to_tab(-1)
 
                 return ActionResult(extracted_content=msg, include_in_memory=True)
             except Exception as e:
@@ -215,6 +224,7 @@ class CustomController(Controller):
                 element_node = await target_browser.get_dom_element_by_index(params.index)
                 print("Self emunium", self._emunium_lock)
                 print("Emunium", self._emunium)
+                print("Enable Enter Typing", self.enable_enter)
                 
                 css_selector = target_browser._enhanced_css_selector_for_element(
                     element_node, include_dynamic_attributes=True
@@ -226,7 +236,7 @@ class CustomController(Controller):
                 """ await page.wait_for_load_state('networkidle') """
                     
                 if self._emunium:
-                    await target_browser.type_at_element(css_selector, params.text)
+                    await target_browser.type_at_element(css_selector, params.text, 12000, enableEnter=self.enable_enter)
                     msg = f"⌨️ Custom Input into index {params.index}"
                 else:
                     await target_browser._input_text_element_node(element_node, params.text)
@@ -250,6 +260,8 @@ class CustomController(Controller):
         context: Optional[Context] = None,
         enable_emunium=False,  # Add comma here
         browserContextOpt: Optional[CustomBrowserContext] = None,
+        enableEnter: Optional[bool] = False,
+        enableClick: Optional[bool] = False
     ) -> ActionResult:
         """Execute a custom action using the registry."""
         try:
@@ -258,7 +270,12 @@ class CustomController(Controller):
                 self.browserContextOpt = browserContextOpt
                 """ page = browserContext.move_to_element() # type: ignore
                 print("Page", page.viewport_size) # type: ignore """
-            print("Enable emunium", enable_emunium)
+            if enableEnter:
+                self.enable_enter = enableEnter
+                
+            if enableClick:
+                self.enable_click = enableClick
+
             if enable_emunium:
                 self._emunium = enable_emunium
             for action_name, params in action.model_dump(exclude_unset=True).items():

@@ -27,6 +27,39 @@ import psutil
 # Load environment variables from .env file
 load_dotenv()
 
+
+DEFAULT_CDP_PORT = 9222
+DEFAULT_PROMPT_FILE = "prompts/comments/gather_prompt3.json" # Use the updated prompt file
+MAX_RUNS = 2
+INITIAL_RUN_COUNT = 0 # Start counting from 0 or 1 as preferred
+RETRY_DELAY_SECONDS = 30
+MAX_ATTEMPTS_PER_TASK = 3
+MAX_STEPS_PER_RUN = 200
+MAX_ACTIONS_PER_STEP = 3
+WAIT_BETWEEN_RUNS_SECONDS = 25
+REGION_TO_PARAMS = {
+    'de': {'gl': 'de', 'cr': 'countryDE'},
+    'com': {'gl': 'us', 'cr': 'countryUS'}, 
+    'us': {'gl': 'us', 'cr': 'countryUS'},
+    'fr': {'gl': 'fr', 'cr': 'countryFR'},
+    'es': {'gl': 'es', 'cr': 'countryES'},
+    'it': {'gl': 'it', 'cr': 'countryIT'},
+    'ca': {'gl': 'ca', 'cr': 'countryCA'},
+    'com.au': {'gl': 'au', 'cr': 'countryAU'}, 
+    'uk': {'gl': 'uk', 'cr': 'countryGB'}, 
+    'co.uk': {'gl': 'uk', 'cr': 'countryGB'},
+    'nl': {'gl': 'nl', 'cr': 'countryNL'},
+    'at': {'gl': 'at', 'cr': 'countryAT'},
+    'fi': {'gl': 'fi', 'cr': 'countryFI'},
+    'ge': {'gl': 'ge', 'cr': 'countryGE'}, # Assuming Georgia
+    # Add other mappings as needed
+}
+
+# List of regions to cycle through (use consistent codes like 'de', 'us', 'uk', 'fr', etc.)
+GOOGLE_REGIONS = ['de', 'us', 'fr', 'es', 'it', 'ca', 'au', 'nl', 'at', 'fi', 'ge', 'uk'] # Example list, adjust as needed
+REGION_CYCLE_LENGTH = 300
+PAGE_CYCLE_LENGTH = 50
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -538,7 +571,7 @@ async def run_browser_job(
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
-# Step 7: Determine success status and save history/screenshots
+                # Step 7: Determine success status and save history/screenshots
                 success = history.is_successful()  # Check if the task was successful
                 logger.info(f"Task success status: {success}")
 
@@ -629,37 +662,75 @@ async def run_browser_job(
 
 async def main_loop():
     """Main loop to keep running tasks from a JSON prompt file."""
-    task, add_infos = load_json_prompt(file_path="prompts/comments/gather_prompt4.json")
-    if not task:
+    # Use the updated prompt file name if you changed it
+    prompt, base_add_infos = load_json_prompt(file_path="prompts/comments/gather_prompt_dynamic.json")
+    if not prompt:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
 
-    run_count = 1
-    max_runs = 5000
+    run_count = 0
+    max_runs = 5000 # Or your desired limit
 
     while max_runs is None or run_count < max_runs:
         run_count += 1
-        logger.info(f"Starting run {run_count}")
+        current_run_id = f"run_{run_count}"
+        logger.info(f"--- Starting {current_run_id} ---")
+
+        # Calculate dynamic parameters
+        page_number = (run_count % PAGE_CYCLE_LENGTH) + 1
+        # Use consistent region codes from your GOOGLE_REGIONS list
+        region_index = (run_count // REGION_CYCLE_LENGTH) % len(GOOGLE_REGIONS)
+        current_region_code = GOOGLE_REGIONS[region_index]
+
+        # Get gl and cr parameters from the mapping
+        params = REGION_TO_PARAMS.get(current_region_code)
+        if not params:
+            logger.error(f"Region code '{current_region_code}' not found in REGION_TO_PARAMS mapping. Skipping run.")
+            await asyncio.sleep(WAIT_BETWEEN_RUNS_SECONDS) # Wait before next attempt
+            continue # Skip this run
+
+        gl_param = params['gl']
+        cr_param = params['cr']
+
+        # Construct the full Google search URL with region parameters
+        search_url = f"https://www.google.com/search?q=music+forums&gl={gl_param}&cr={cr_param}"
+
+        # Construct the task and add_infos for this specific run
+        current_task = prompt # The prompt itself doesn't need dynamic info prefixed anymore
+
+        # Append dynamic info to base add_infos
+        current_add_infos = (
+            f"DYNAMIC INSTRUCTIONS FOR THIS RUN:\n"
+            f"- Target Google Search Results Page Number: {page_number}\n"
+            f"- Target Region Code: '{current_region_code}' (Using gl={gl_param}, cr={cr_param})\n"
+            f"- Perform the search using this specific URL: {search_url}\n"
+            f"- Navigate to page {page_number} of the results (e.g., by adding '&start={(page_number - 1) * 10}' to the URL if needed).\n"
+            f"---\n"
+            f"{base_add_infos}" # Append the static part loaded from JSON
+        )
+
+        logger.info(f"{current_run_id}: Page: {page_number}, Region: {current_region_code} (gl={gl_param}, cr={cr_param}), Search URL: {search_url}&start={(page_number - 1) * 10}") # Log the page 1 start URL for clarity
+
         try:
             result = await run_browser_job(
-                task=f"Click to {run_count} page" + task,
-                add_infos=add_infos,
-                max_steps=200,
-                max_actions_per_step=3,
-                retry_delay=25,
-                max_attempts_per_task=3,
+                task=current_task,
+                add_infos=current_add_infos, # Pass the combined add_infos
+                max_steps=MAX_STEPS_PER_RUN, # Use defined constants
+                max_actions_per_step=MAX_ACTIONS_PER_STEP,
+                retry_delay=RETRY_DELAY_SECONDS,
+                max_attempts_per_task=MAX_ATTEMPTS_PER_TASK,
                 run_count=run_count
-            ) # type: ignore
+            )
             if result:
                 logger.info(f"Run {run_count} completed successfully with result: {result}")
             else:
                 logger.warning(f"Run {run_count} failed after all attempts.")
-            logger.info(f"Waiting 25 seconds before next run...")
-            await asyncio.sleep(25)
+            logger.info(f"Waiting {WAIT_BETWEEN_RUNS_SECONDS} seconds before next run...")
+            await asyncio.sleep(WAIT_BETWEEN_RUNS_SECONDS)
         except Exception as e:
             logger.error(f"Unexpected error in run {run_count}: {str(e)}\n{traceback.format_exc()}")
-            logger.info(f"Waiting 25 seconds before retrying...")
-            await asyncio.sleep(25)
+            logger.info(f"Waiting {WAIT_BETWEEN_RUNS_SECONDS} seconds before retrying...")
+            await asyncio.sleep(WAIT_BETWEEN_RUNS_SECONDS)
 
 if __name__ == "__main__":
     try:

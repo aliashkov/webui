@@ -152,6 +152,8 @@ class EmuniumPlaywright(EmuniumBase):
         self._silent_type(text, characters_per_minute, offset)
 
     async def scroll_to(self, element):
+        await self._get_browser_properties_if_not_found()
+        
         rect = await element.bounding_box()
         if rect is None:
             return None

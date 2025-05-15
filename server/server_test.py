@@ -1,6 +1,5 @@
 import asyncio
 import os
-import shutil
 import sys
 import logging
 import traceback
@@ -11,6 +10,7 @@ from playwright.async_api import async_playwright
 from browser_use import BrowserConfig
 from browser_use.browser.context import BrowserContextConfig, BrowserContextWindowSize
 from dotenv import load_dotenv  # Added for environment variable loading
+import shutil  # Add this import at the top of your script
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
@@ -538,7 +538,7 @@ async def run_browser_job(
                 )
                 logger.info(f"Task completed successfully. Final Result: {history.final_result()}")
 
-# Step 7: Determine success status and save history/screenshots
+                # Step 7: Determine success status and save history/screenshots
                 success = history.is_successful()  # Check if the task was successful
                 logger.info(f"Task success status: {success}")
 
@@ -629,20 +629,20 @@ async def run_browser_job(
 
 async def main_loop():
     """Main loop to keep running tasks from a JSON prompt file."""
-    task, add_infos = load_json_prompt(file_path="prompts/comments/gather_prompt4.json")
+    task, add_infos = load_json_prompt(file_path="prompts/test2_prompt.json")
     if not task:
         logger.error("Failed to load task from JSON prompt file. Exiting.")
         return
 
     run_count = 1
-    max_runs = 5000
+    max_runs = 2
 
     while max_runs is None or run_count < max_runs:
         run_count += 1
         logger.info(f"Starting run {run_count}")
         try:
             result = await run_browser_job(
-                task=f"Click to {run_count} page" + task,
+                task=task,
                 add_infos=add_infos,
                 max_steps=200,
                 max_actions_per_step=3,

@@ -52,18 +52,30 @@ class EmuniumBase:
             else:
                 self.browser_offsets = (0, 0)
             self.browser_inner_window = get_image_size(temp_screen_path)
+            print("Inner Width" , self.browser_inner_window)
             os.remove(temp_screen_path)
 
     def _get_center(self, element_location, element_size):
         offset_to_screen_x, offset_to_screen_y = self.browser_offsets if self.browser_offsets else (0, 0)
-        print(offset_to_screen_x)
-        print(offset_to_screen_y)
-        element_x = element_location["x"] + offset_to_screen_x
-        """ element_y = element_location["y"] + offset_to_screen_y """
-        element_y = element_location["y"] + 117
-        centered_x = element_x + (element_size["width"] // 2)
-        centered_y = element_y + (element_size["height"] // 2)
-        return {"x": centered_x, "y": centered_y}
+        
+        # element_location['x'] и element_location['y'] -- это координаты элемента
+        # относительно ВЬЮПОРТА браузера (видимой части страницы).
+        # self.browser_offsets -- это смещение вьюпорта браузера относительно
+        # ВЕРХНЕГО ЛЕВОГО УГЛА ЭКРАНА.
+
+        # Координата X центра элемента на экране:
+        # (координата X левого края элемента во вьюпорте + половина ширины элемента) + смещение вьюпорта по X от края экрана
+        screen_element_center_x = (element_location["x"] + element_size["width"] // 2) + offset_to_screen_x
+        
+        # Координата Y центра элемента на экране:
+        # (координата Y верхнего края элемента во вьюпорте + половина высоты элемента) + смещение вьюпорта по Y от края экрана
+        screen_element_center_y = (element_location["y"] + element_size["height"] // 2) + offset_to_screen_y
+        
+        # logger.debug(f"EmuniumBase._get_center: element_location={element_location}, element_size={element_size}, browser_offsets={self.browser_offsets}")
+        # logger.debug(f"EmuniumBase._get_center: calculated screen center: x={screen_element_center_x}, y={screen_element_center_y}")
+
+        return {"x": int(screen_element_center_x), "y": int(screen_element_center_y)}
+
 
     def _move(self, center, offset_x=None, offset_y=None):
         if offset_x is None:

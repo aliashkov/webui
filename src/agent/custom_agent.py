@@ -132,6 +132,7 @@ class CustomAgent(Agent):
             task=task,
             llm=llm,
             browser=browser,
+            
             browser_context=browser_context,
             controller=controller,
             sensitive_data=sensitive_data,
@@ -311,17 +312,11 @@ class CustomAgent(Agent):
         
         
     @time_execution_async("--get_next_action")
-    async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium = False) -> AgentOutput:
-        """Get next action from LLM and insert cursor movement if targeting a new element."""
+    async def get_next_action(self, input_messages: list[BaseMessage], browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium: Optional[bool] = False, enableEnter: Optional[bool] = False) -> AgentOutput:
+        """Get next action from LLM based on current state"""
         fixed_input_messages = self._convert_input_messages(input_messages)
-        """ print("Message", fixed_input_messages) """
         ai_message = self.llm.invoke(fixed_input_messages)
-
         self.message_manager._add_message_with_tokens(ai_message)
-        
-        
-        print("Enable Emunium", enable_emunium)
-
 
         if hasattr(ai_message, "reasoning_content"):
             logger.info("🤯 Start Deep Thinking: ")
@@ -339,6 +334,7 @@ class CustomAgent(Agent):
             parsed_json = json.loads(ai_content)
             parsed: AgentOutput = self.AgentOutput(**parsed_json)
         except Exception as e:
+            import traceback
             traceback.print_exc()
             logger.debug(ai_message.content)
             raise ValueError('Could not parse response.')
@@ -347,163 +343,9 @@ class CustomAgent(Agent):
             logger.debug(ai_message.content)
             raise ValueError('Could not parse response.')
 
-        # Check for actions targeting elements and insert cursor movement if needed
-        updated_actions = []
-        if enable_emunium:
-            for action in parsed.action:
-                action_dict = action.model_dump(exclude_unset=True)
-
-                # Extract selector and index, handling nested structures
-                selector = None
-                index = None
-                action_name = next(iter(action_dict)) if action_dict else None
-                if action_name and isinstance(action_dict.get(action_name), dict):
-                    nested_dict = action_dict[action_name]
-                    selector = nested_dict.get("selector")
-                    index = nested_dict.get("index")
-
-                target_identifier = None
-                state = await self.browser_context.get_state()
-
-                # Determine the target identifier (selector or index-based)
-                if selector:
-                    target_identifier = selector
-                elif index is not None:
-                    emunium = EmuniumPlaywright(self.browser_context)
-                    page = await self.browser_context.get_current_page()
-
-                    print("Page:", page)
-                    print("Emunium:", emunium)
-                    print("Index:", index)
-                    print("Current Element:", state.selector_map[index])
-                    print("Action:", action)
-                    print("Action dict:", action_dict)
-                    print("Action name:", action_name)
-
-                    # Extract the target element from selector_map using the index
-                    target_element = state.selector_map[index]
-
-                    # Initialize selector
-                    element_selector = None
-
-                    # Check if target_element is a DOMElementNode
-                    if str(type(target_element).__name__) == 'DOMElementNode':
-                        print("Target element is a DOMElementNode.")
-
-                        # Try to access attributes from DOMElementNode
-                        try:
-                            element_id = target_element.get_attribute('id') if hasattr(target_element, 'get_attribute') else None
-                            if element_id:
-                                print("Extracted ElementId from DOMElementNode:", element_id)
-                                element_selector = f'#{element_id}'
-                        except Exception as e:
-                            print(f"Failed to get attributes from DOMElementNode: {e}")
-
-                        # Fallback: Use string representation if attributes are inaccessible
-                        if not element_selector:
-                            print("Falling back to string representation of DOMElementNode...")
-                            element_str = str(target_element)
-
-                            # Extract id
-                            id_match = re.search(r'id\s*=\s*([\'"]?)([^\'"\s>]+)\1', element_str, re.IGNORECASE)
-                            if id_match:
-                                element_id = id_match.group(2)
-                                print("Extracted ElementId from string:", element_id)
-                                element_selector = f'#{element_id}'
-
-                            # Extract class
-                            if not element_selector:
-                                class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-                                if class_match:
-                                    class_name = class_match.group(2)
-                                    tag_match = re.search(r'<(\w+)', element_str)
-                                    tag_name = tag_match.group(1).lower() if tag_match else 'button'
-                                    element_selector = f"{tag_name}.{'.'.join(class_name.split())}"
-                                    print("Using class-based selector:", element_selector)
-
-                            # Extract data-ved
-                            if not element_selector:
-                                data_ved_match = re.search(r'data-ved\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-                                if data_ved_match:
-                                    data_ved = data_ved_match.group(2)
-                                    tag_match = re.search(r'<(\w+)', element_str)
-                                    tag_name = tag_match.group(1).lower() if tag_match else 'button'
-                                    element_selector = f'{tag_name}[data-ved="{data_ved}"]'
-                                    print("Using data-ved selector:", element_selector)
-
-                            # No usable attributes found
-                            if not element_selector:
-                                print("No usable attributes found in DOMElementNode string.")
-
-                    # Handle other unexpected types
-
-                    print("Constructed Selector:", element_selector)
-
-                    # Locate the element using the constructed selector
-                    TIMEOUT_MS = 30000
-
-                    id_match = re.search(r'\bid\s*=\s*([\'"])(.*?)\1', element_str, re.IGNORECASE)
-                    aria_match = re.search(r'aria-label\s*=\s*([\'"])(.*?)\1', element_str, re.IGNORECASE)
-                    class_match = re.search(r'class\s*=\s*([\'"]?)([^\'">]+)\1', element_str, re.IGNORECASE)
-
-                    if id_match:
-                        element_id = id_match.group(2)
-                        print("Extracted 2 from string:", element_id)
-                        print("Self browser", browserContext)
-                        print("Element Selector", element_selector)
-                        element_selector = f'[id="{element_id}"]'
-                        if browserContext:
-                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
-                            
-                    elif aria_match:
-                        element_aria = aria_match.group(2)
-                        print("Extracted aria-label from string:", element_aria)
-                        print("Self browser", browserContext)
-                        print("Element Selector", element_selector)
-                        element_selector = f'[aria-label="{element_aria}"]'
-                        if browserContext:
-                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
-
-                    elif class_match:
-                        element_id = class_match.group(2)
-                        print("Extracted 3 from string:", element_id)
-                        print("Self browser", browserContext)
-                        print("Element Selector", element_selector)
-                        element_selector = f'[class="{element_id}"]'
-                        if browserContext:
-                            """ await browserContext.move_to_element(element_selector, useOwnBrowser=useOwnBrowser) """
-
-                if target_identifier and target_identifier != self.last_cursor_selector:
-                    # Insert a MoveCursorToElement action before the current action
-                    move_action = {
-                        "name": "Move cursor to element",
-                        "selector": target_identifier
-                    }
-                    updated_actions.append(self.ActionModel(**move_action))
-                    logger.debug(f"Inserted cursor movement to {target_identifier}")
-                    self.last_cursor_selector = target_identifier
-
-                    # Replace default actions with custom ones where applicable
-                    if action_dict.get("name") == "input_text" and target_identifier:
-                        updated_actions.append(self.ActionModel(
-                            name="Type text at element",
-                            selector=target_identifier,
-                            text=action_dict["input_text"]["text"]
-                        ))
-                    elif action_dict.get("name") == "click_element" and target_identifier:
-                        updated_actions.append(self.ActionModel(
-                            name="Click element with human behavior",
-                            selector=target_identifier
-                        ))
-                else:
-                    updated_actions.append(action)
-        else:
-            # If enable_emunium is False, use the original actions without modification
-            updated_actions = parsed.action
-
-        parsed.action = updated_actions
+        # cut the number of actions to max_actions_per_step if needed
         if len(parsed.action) > self.settings.max_actions_per_step:
-           parsed.action = parsed.action[:self.settings.max_actions_per_step]
+            parsed.action = parsed.action[: self.settings.max_actions_per_step]
         self._log_response(parsed)
         return parsed
     
@@ -514,10 +356,14 @@ class CustomAgent(Agent):
             check_for_new_elements: bool = True,
             browserContext: Optional[CustomBrowserContext] = None, 
             useOwnBrowser: Optional[bool] = False, 
-            enable_emunium=False,
+            enable_emunium: Optional[bool] = False, 
+            enableEnter: Optional[bool] = False,
+            enableClick: Optional[bool] = False
         ) -> list[ActionResult]:
             """Execute multiple actions"""
             results = []
+            
+            print("Enable Enter 4", enableEnter)
             
             cached_selector_map = await self.browser_context.get_selector_map()
     
@@ -545,7 +391,9 @@ class CustomAgent(Agent):
                     self.settings.available_file_paths,
                     context=self.context,
                     enable_emunium=enable_emunium,
-                    browserContextOpt=browserContext
+                    browserContextOpt=browserContext,
+                    enableEnter=enableEnter,
+                    enableClick=enableClick
                 )
 
                 results.append(result)
@@ -616,7 +464,7 @@ class CustomAgent(Agent):
         return plan
 
     @time_execution_async("--step")
-    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[bool] = False, enable_emunium: Optional[bool] = False, customHistory: Optional[bool] = False) -> None:
+    async def step(self, step_info: Optional[CustomAgentStepInfo] = None, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser:  Optional[bool] = False, enable_emunium: Optional[bool] = False, customHistory: Optional[bool] = False, enableEnter: Optional[bool] = False, enableClick: Optional[bool] = False) -> None:
         """Execute one step of the task"""
         logger.info(f"\n📍 Step {self.state.n_steps}")
         state = None
@@ -624,10 +472,12 @@ class CustomAgent(Agent):
         result: list[ActionResult] = []
         step_start_time = time.time()
         tokens = 0
+        
+        print("Enable Enter 5", enableEnter)
 
         try:
             state = await self.browser_context.get_state()
-            """ print("State", state) """
+            """ print("State", state.screenshot) """
 
 
             await self._raise_if_stopped_or_paused()
@@ -646,7 +496,7 @@ class CustomAgent(Agent):
             """ print("Tokens", tokens) """
 
             try:
-                model_output = await self.get_next_action(input_messages, browserContext = browserContext, useOwnBrowser = useOwnBrowser, enable_emunium = enable_emunium)
+                model_output = await self.get_next_action(input_messages, browserContext = browserContext, useOwnBrowser = useOwnBrowser, enable_emunium = enable_emunium, enableEnter=enableEnter)
                 self.update_step_info(model_output, step_info)
                 self.state.n_steps += 1
 
@@ -667,7 +517,7 @@ class CustomAgent(Agent):
                 self.message_manager._remove_state_message_by_index(-1)
                 raise e
 
-            result: list[ActionResult] = await self.multi_act_custom(model_output.action, browserContext=browserContext, useOwnBrowser=useOwnBrowser,enable_emunium=enable_emunium,)
+            result: list[ActionResult] = await self.multi_act_custom(model_output.action, browserContext=browserContext, useOwnBrowser=useOwnBrowser,enable_emunium=enable_emunium, enableEnter=enableEnter, enableClick=enableClick)
             for ret_ in result:
                 if ret_.extracted_content and "Extracted page" in ret_.extracted_content:
                     # record every extracted page
@@ -725,84 +575,116 @@ class CustomAgent(Agent):
                     self._make_history_item(model_output, state, result, metadata)
                 
                 
-    async def run(self, max_steps: int = 100, browserContext: Optional[CustomBrowserContext] = None, useOwnBrowser: Optional[bool] = False, enable_emunium: bool = False, customHistory: Optional[bool] = False) -> AgentHistoryList:
-        """Execute the task with maximum number of steps."""
+    async def run(
+        self,
+        max_steps: int = 100,
+        deadline: Optional[float] = None, # MODIFIED: Added deadline
+        browserContext: Optional[CustomBrowserContext] = None,
+        useOwnBrowser: Optional[bool] = False,
+        enable_emunium: bool = False,
+        customHistory: Optional[bool] = False,
+        enableEnter: Optional[bool] = False,
+        enableClick: Optional[bool] = False
+    ) -> AgentHistoryList:
         try:
             self._log_agent_run()
+            self.state.timeout_hit = False # Initialize custom state attribute
 
-            print("Agent", self)
-            print("Browser Context", browserContext)
+            current_browser_context = browserContext if browserContext else self.browser_context
 
             if self.initial_actions:
-                result = await self.multi_act_custom(self.initial_actions, check_for_new_elements=False, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium)
+                initial_actions_obj = [self.ActionModel(**a) for a in self.initial_actions] # type: ignore
+                result = await self.multi_act_custom(
+                    initial_actions_obj, check_for_new_elements=False,
+                    browserContext=current_browser_context, useOwnBrowser=useOwnBrowser,
+                    enable_emunium=enable_emunium, enableEnter=enableEnter, enableClick=enableClick
+                )
                 self.state.last_result = result
 
             step_info = CustomAgentStepInfo(
-                task=self.task,
-                add_infos=self.add_infos,
-                step_number=1,
-                max_steps=max_steps,
-                memory="",
+                task=self.task, add_infos=self.add_infos, step_number=0, # Start step_number at 0, will be incremented in update_step_info
+                max_steps=max_steps, memory="",
             )
 
-            for step in range(max_steps):
+            for _ in range(max_steps): # Use _ if step variable isn't directly used for iteration count
+                # MODIFIED: Check for deadline
+                if deadline is not None and time.time() >= deadline:
+                    logger.warning(f"Agent task '{self.task}' (Agent ID: {self.state.agent_id}) is stopping due to reaching the time limit.")
+                    self.state.timeout_hit = True
+                    timeout_action_result = ActionResult(error="Task execution timed out.", is_done=True, include_in_memory=True)
+                    if self.state.history.history:
+                        last_item = self.state.history.history[-1]
+                        if last_item.result: last_item.result.append(timeout_action_result)
+                        else: last_item.result = [timeout_action_result]
+                    else: # Create a minimal history item for timeout if history is empty
+                        dummy_state = BrowserStateHistoryCustom(url="N/A", title="Timeout", screenshot="")
+                        dummy_output = CustomAgentOutput.type_with_custom_actions(self.ActionModel)( # type: ignore
+                            current_state={'evaluation_previous_goal': 'Timeout', 'important_contents': '', 'thought': 'Timeout before first step', 'next_goal': ''}, # type: ignore
+                            action=[]
+                        )
+                        timeout_item = AgentHistoryCustom(model_output=dummy_output, result=[timeout_action_result], state=dummy_state)
+                        self.state.history.history.append(timeout_item) # type: ignore
+                        # self.state.n_steps += 1 # Optionally count this as a step
+                    break 
+
                 if self.state.consecutive_failures >= self.settings.max_failures:
                     logger.error(f'❌ Stopping due to {self.settings.max_failures} consecutive failures')
                     break
-
-                if self.state.stopped:
-                    logger.info('Agent stopped')
-                    break
-
+                if self.state.stopped: logger.info('Agent stopped'); break
                 while self.state.paused:
                     await asyncio.sleep(0.2)
-                    if self.state.stopped:
-                        break
+                    if self.state.stopped: break
+                if self.state.stopped: break # Check again after pause
 
-                await self.step(step_info, browserContext=browserContext, useOwnBrowser=useOwnBrowser, enable_emunium=enable_emunium, customHistory=customHistory)
+                await self.step(
+                    step_info, browserContext=current_browser_context, useOwnBrowser=useOwnBrowser,
+                    enable_emunium=enable_emunium, customHistory=customHistory,
+                    enableEnter=enableEnter, enableClick=enableClick
+                )
 
                 if self.state.history.is_done():
-                    if self.settings.validate_output and step < max_steps - 1:
-                        if not await self._validate_output():
-                            continue
-
-                    await self.log_completion()
+                    if self.settings.validate_output and self.state.n_steps < max_steps : # check step vs max_steps
+                        if not await self._validate_output(): continue
+                    # await self.log_completion() # Moved to post-loop logic
                     break
-            else:
-                logger.info("❌ Failed to complete task in maximum steps")
-                if self.state.history.history:
-                    if not self.state.extracted_content:
-                        self.state.history.history[-1].result[-1].extracted_content = step_info.memory
-                    else:
-                        self.state.history.history[-1].result[-1].extracted_content = self.state.extracted_content
-                else:
-                    logger.warning("History is empty; cannot set extracted_content")
+            
+            # Post-loop status determination
+            final_history = self.state.history
+            if self.state.timeout_hit:
+                logger.warning(f"Agent task '{self.task}' (ID: {self.state.agent_id}) ended due to timeout. Steps: {self.state.n_steps}.")
+                # Ensure final extracted content is set if timeout occurred
+                if final_history.history and hasattr(step_info, 'memory'):
+                    last_res = final_history.history[-1].result
+                    if last_res and (not last_res[-1].extracted_content or "timeout" in last_res[-1].error.lower()): # type: ignore
+                        content = self.state.extracted_content if self.state.extracted_content else step_info.memory
+                        last_res[-1].extracted_content = content
 
-            return self.state.history
+            elif final_history.is_done():
+                if final_history.is_successful():
+                    await self.log_completion()
+                else:
+                    logger.warning(f"Agent task '{self.task}' (ID: {self.state.agent_id}) completed but was not successful. Steps: {self.state.n_steps}. Result: {final_history.final_result()}")
+            elif self.state.n_steps >= max_steps:
+                logger.info(f"❌ Agent task '{self.task}' (ID: {self.state.agent_id}) failed to complete in maximum steps ({max_steps}).")
+                if final_history.history and hasattr(step_info, 'memory'):
+                    if not final_history.history[-1].result: final_history.history[-1].result = [ActionResult()]
+                    content = self.state.extracted_content if self.state.extracted_content else step_info.memory
+                    if not final_history.history[-1].result[-1].extracted_content : final_history.history[-1].result[-1].extracted_content = content
+            else: # Other reasons for loop exit (e.g. manual stop, max failures)
+                 logger.info(f"Agent task '{self.task}' (ID: {self.state.agent_id}) ended. Steps: {self.state.n_steps}. Done: {final_history.is_done()}. Successful: {final_history.is_successful()}. Stopped: {self.state.stopped}")
+
+            return final_history
 
         finally:
-            self.telemetry.capture(
-                AgentEndTelemetryEvent(
-                    agent_id=self.state.agent_id,
-                    is_done=self.state.history.is_done(),
-                    success=self.state.history.is_successful(),
-                    steps=self.state.n_steps,
-                    max_steps_reached=self.state.n_steps >= max_steps,
-                    errors=self.state.history.errors(),
-                    total_input_tokens=self.state.history.total_input_tokens(),
-                    total_duration_seconds=self.state.history.total_duration_seconds(),
-                )
-            )
-
-            if not self.injected_browser_context:
-                await self.browser_context.close()
-
-            if not self.injected_browser and self.browser:
-                await self.browser.close()
-
-            if self.settings.generate_gif and (not customHistory):
-                output_path: str = 'agent_history.gif'
-                if isinstance(self.settings.generate_gif, str):
-                    output_path = self.settings.generate_gif
-
+            self.telemetry.capture(AgentEndTelemetryEvent(
+                agent_id=self.state.agent_id, is_done=self.state.history.is_done(),
+                success=self.state.history.is_successful(), steps=self.state.n_steps,
+                max_steps_reached=(self.state.n_steps >= max_steps and not self.state.timeout_hit and not self.state.history.is_done()),
+                timed_out=self.state.timeout_hit, # Add custom telemetry field if your Event supports it
+                errors=self.state.history.errors(), total_input_tokens=self.state.history.total_input_tokens(),
+                total_duration_seconds=self.state.history.total_duration_seconds()))
+            if not self.injected_browser_context and self.browser_context: await self.browser_context.close()
+            if not self.injected_browser and self.browser: await self.browser.close()
+            if self.settings.generate_gif and not customHistory:
+                output_path = 'agent_history.gif' if isinstance(self.settings.generate_gif, bool) else self.settings.generate_gif
                 create_history_gif(task=self.task, history=self.state.history, output_path=output_path)

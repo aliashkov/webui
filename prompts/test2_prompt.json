@@ -1,0 +1,5 @@
+{
+    "task_id": "google_hitz_login",
+    "description": "Search OpenAI on Google, log in, and perform actions",
+    "prompt": "go to google.com and type 'OpenAI' click search. Return me first link (url) of this request"
+}
