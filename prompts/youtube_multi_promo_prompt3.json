@@ -15,7 +15,7 @@
         "    c. If a suitable channel is found via browsing and meets the criteria, proceed to step 6.",
         "5. Use Search (if Browsing Fails - for current channel selection):",
         "    a. If browsing the main feed (step 3) did not yield a suitable channel candidate within ~2-5 seconds, use the YouTube search bar.",
-        "    b. Try varied, 1-3 word music-related search queries (e.g., 'pop hits', 'rock music', 'edm tracks', 'hip hop', 'indie songs'). **CRITICAL: Vary your search terms frequently.** Do not use the same query repeatedly. If one search term leads to channels you are subscribed to, ineligible channels, or channels already used in this task, try a different search term.",
+        "    b. Try varied, 1-3 word music-related search queries (e.g., 'rock music', 'edm tracks', 'hip hop', 'indie songs'). **CRITICAL: Vary your search terms frequently.** Do not use the same query repeatedly. If one search term leads to channels you are subscribed to, ineligible channels, or channels already used in this task, try a different search term.",
         "    c. From the search results, identify a popular music channel that meets the criteria: at least 30,000 subscribers, appears active, and has not been used for a previous comment in this task execution. If after clicking, the page navigated to is NOT youtube.com, return to google.com and search for 'youtube.com' again.",
         "    d. If a suitable channel is found via search, proceed to step 6.",
         "6. Check Subscription Status (for current channel candidate): Once a potential channel (from step 4 or 5 for this iteration) is identified, check if you are already subscribed to it.",
@@ -70,6 +70,7 @@
         "- Each of the ten comments should relate genuinely to the specific music video being watched and should be unique.",
         "- Generate a unique comment each time. Do not reuse the example comment provided or comments from previous runs. Each comment must be tailored to its specific video.",
         "- Choose actual music videos, not unrelated content. Ensure each video is from a different channel.",
-        "- Do NOT include any links in the comments."
+        "- Do NOT include any links in the comments.",
+        "- Remember to vary search terms and channel selections. Do not favor specific music genres over others."
     ]
 }
