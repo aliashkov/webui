@@ -17,7 +17,6 @@ from browser_use.agent.views import AgentHistoryList
 from src.utils import utils
 
 
-
 async def test_browser_use_org():
     from browser_use.browser.browser import Browser, BrowserConfig
     from browser_use.browser.context import (
